@@ -34,6 +34,8 @@ func run(args []string) int {
 	switch args[0] {
 	case "search":
 		err = cmdSearch(args[1:])
+	case "title":
+		err = cmdTitle(args[1:])
 	case "login":
 		err = cmdLogin(args[1:])
 	case "import-har":
@@ -79,6 +81,8 @@ USAGE:
 READ COMMANDS:
   search <query>           search the catalogue
                            --limit N   cap titles returned (default 48)
+  title <id|url>           full detail for one title (synopsis, cast, genres)
+                           --similar   also resolve the similar-title ids
 
 SESSION (bring the session from a browser you are already signed in to):
   login --from-browser b   lift cookies from a browser's store — easiest
