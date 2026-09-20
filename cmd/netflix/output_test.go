@@ -119,3 +119,17 @@ func TestNonListResultsPassThrough(t *testing.T) {
 		t.Errorf("output = %q", out)
 	}
 }
+
+// A command whose probe failed must not put a row on stdout. `whoami` with no
+// session printed " ()" there, ahead of the error on stderr.
+func TestPrintUserSaysNothingWithoutAnAccount(t *testing.T) {
+	if out := captureStdout(t, func() { printUser(client.UserInfo{}) }); out != "" {
+		t.Errorf("printUser of an empty account wrote %q to stdout", out)
+	}
+	out := captureStdout(t, func() {
+		printUser(client.UserInfo{Name: "Ada", MembershipStatus: "CURRENT_MEMBER"})
+	})
+	if !strings.Contains(out, "Ada (CURRENT_MEMBER)") {
+		t.Errorf("printUser = %q", out)
+	}
+}

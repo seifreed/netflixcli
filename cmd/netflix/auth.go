@@ -146,6 +146,11 @@ func printSession(user client.UserInfo, profile client.Profile) {
 }
 
 func printUser(u client.UserInfo) {
+	if u.Name == "" {
+		// Netflix named no account, which means the session was refused. The
+		// error on stderr says so; printing " ()" to stdout says nothing.
+		return
+	}
 	fmt.Printf("%s (%s)\n", u.Name, u.MembershipStatus)
 	if u.AccountOwnerName != "" && u.AccountOwnerName != u.Name {
 		fmt.Printf("  account: %s\n", u.AccountOwnerName)
