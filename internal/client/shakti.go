@@ -12,9 +12,10 @@ import (
 // build id (part of the API path) and the authURL token every write and
 // pathEvaluator call must echo back.
 type shaktiContext struct {
-	BuildID string
-	AuthURL string
-	User    UserInfo
+	BuildID   string
+	AuthURL   string
+	BundleURL string // Akira client bundle, where the persisted query ids live
+	User      UserInfo
 }
 
 // UserInfo is the account summary Netflix embeds in every page.
@@ -69,9 +70,10 @@ func parseReactContext(html string) (*shaktiContext, error) {
 		return nil, fmt.Errorf("netflix bootstrap carries no build identifier")
 	}
 	return &shaktiContext{
-		BuildID: build,
-		AuthURL: ctx.Models.UserInfo.Data.AuthURL,
-		User:    ctx.Models.UserInfo.Data.UserInfo,
+		BuildID:   build,
+		AuthURL:   ctx.Models.UserInfo.Data.AuthURL,
+		BundleURL: bundleURLRe.FindString(html),
+		User:      ctx.Models.UserInfo.Data.UserInfo,
 	}, nil
 }
 

@@ -50,6 +50,7 @@ type Client struct {
 	fetch func(url string) (string, error)
 
 	ctx          *shaktiContext // lazily bootstrapped build id + authURL
+	queries      *queryManifest // lazily resolved persisted GraphQL query ids
 	transportErr error
 	warnOnce     sync.Once
 }

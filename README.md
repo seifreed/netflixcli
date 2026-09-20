@@ -27,6 +27,12 @@ or from a clone:
 make build     # ./netflix
 ```
 
+## Read commands
+
+| command | what it does |
+| --- | --- |
+| `netflix search <query>` | search the catalogue (`--limit N`) |
+
 ## Session
 
 | command | what it does |
@@ -44,6 +50,14 @@ The session is cached in `~/.netflix/session.json` (mode 0600).
 profile = "…"      # profile guid used by default
 lang = "es-ES"
 ```
+
+## How it talks to Netflix
+
+The web app sends *persisted* GraphQL operations: an id, not a query document.
+Those ids change with every Netflix build, so the CLI scrapes them out of the
+Akira client bundle once per build and caches the map in
+`~/.netflix/queries.json`. The first command after a Netflix deploy therefore
+downloads that bundle; every later one is a single request.
 
 ## Output for agents
 
