@@ -1,0 +1,53 @@
+name: Release
+
+# A release is cut by pushing a tag, and only by pushing a tag:
+#
+#     git tag -a v1.2.0 -m "v1.2.0" && git push origin v1.2.0
+#
+# The tag is the version. goreleaser stamps it into the binary through the
+# ldflags in .goreleaser.yaml, so `netflix version` reports the tag, the commit
+# it was built from and the build date.
+on:
+  push:
+    tags: ["v*"]
+
+# Read by default. The gates build and test, which runs dependency code; they do
+# not need a token that can write to the repository. Only the job that publishes
+# the release asks for one.
+permissions:
+  contents: read
+
+jobs:
+  # Exactly the gates a push to main runs — the three-platform build and test
+  # matrix, the quality gate and the security gate — rather than a second,
+  # weaker definition of "ready to ship" that could drift from the first.
+  gates:
+    name: gates
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  goreleaser:
+    name: publish
+    needs: gates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload its archives
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # goreleaser builds the changelog from history
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Cross-compiles Linux, macOS and Windows for amd64 and arm64, writes
+      # checksums.txt, and attaches the lot to the GitHub release for the tag.
+      - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

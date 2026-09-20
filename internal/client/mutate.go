@@ -1,0 +1,175 @@
+package client
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+// EntityState is what a write returns: the title as Netflix sees it afterwards.
+type EntityState struct {
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	InMyList    bool   `json:"inMyList"`
+	Reminder    bool   `json:"reminder"`
+	ThumbRating string `json:"thumbRating,omitempty"`
+	URL         string `json:"url"`
+}
+
+type entityEnvelope struct {
+	Entity struct {
+		VideoID          int    `json:"videoId"`
+		Title            string `json:"title"`
+		IsInPlaylist     bool   `json:"isInPlaylist"`
+		IsInRemindMeList bool   `json:"isInRemindMeList"`
+		ThumbRating      string `json:"thumbRating"`
+	} `json:"entity"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
+}
+
+// state reads the entity a write answered with. videoID is the title that was
+// asked about, for the message when nothing came back: Netflix answers an
+// unknown title with an empty entity and no error, which used to be reported as
+// a successful change to a title with no name.
+func (e entityEnvelope) state(videoID int) (EntityState, error) {
+	if len(e.Errors) > 0 {
+		return EntityState{}, fmt.Errorf("netflix refused the change: %s", e.Errors[0].Message)
+	}
+	if e.Entity.VideoID == 0 {
+		return EntityState{}, fmt.Errorf("netflix did not accept a change to title %d — it may not exist in this region", videoID)
+	}
+	return EntityState{
+		ID:          e.Entity.VideoID,
+		Title:       e.Entity.Title,
+		InMyList:    e.Entity.IsInPlaylist,
+		Reminder:    e.Entity.IsInRemindMeList,
+		ThumbRating: e.Entity.ThumbRating,
+		URL:         TitleURL(e.Entity.VideoID),
+	}, nil
+}
+
+// AddToMyList saves a title to the current profile's My List.
+func (s *Library) AddToMyList(videoID int) (EntityState, error) {
+	return s.playlistMutation("AddToPlaylist", "addEntityToPlaylist", videoID)
+}
+
+// RemoveFromMyList drops a title from the current profile's My List.
+func (s *Library) RemoveFromMyList(videoID int) (EntityState, error) {
+	return s.playlistMutation("RemoveFromPlaylist", "removeEntityFromPlaylist", videoID)
+}
+
+// entityMutation runs a mutation on one title and returns the field it answered
+// under, still raw: the playlist mutations wrap the entity in an envelope, the
+// reminder ones return it bare, and only that differs between them.
+func (s *Library) entityMutation(op, field string, videoID int) (json.RawMessage, error) {
+	var resp map[string]json.RawMessage
+	if err := s.client.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
+		return nil, err
+	}
+	raw, ok := resp[field]
+	if !ok {
+		return nil, fmt.Errorf("netflix returned no result for %s", op)
+	}
+	return raw, nil
+}
+
+func (s *Library) playlistMutation(op, field string, videoID int) (EntityState, error) {
+	raw, err := s.entityMutation(op, field, videoID)
+	if err != nil {
+		return EntityState{}, err
+	}
+	var env entityEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return EntityState{}, fmt.Errorf("decode %s result: %w", op, err)
+	}
+	return env.state(videoID)
+}
+
+// thumbRatings maps the CLI's rating words to Netflix's enum.
+var thumbRatings = map[string]string{
+	"up":      "THUMBS_UP",
+	"down":    "THUMBS_DOWN",
+	"love":    "THUMBS_WAY_UP",
+	"way-up":  "THUMBS_WAY_UP",
+	"none":    "THUMBS_UNRATED",
+	"unrated": "THUMBS_UNRATED",
+}
+
+// parseThumbRating maps a rating word to the enum Netflix expects.
+func parseThumbRating(word string) (string, error) {
+	rating, ok := thumbRatings[strings.ToLower(strings.TrimSpace(word))]
+	if !ok {
+		return "", fmt.Errorf("unknown rating %q (want up, down, love or none)", word)
+	}
+	return rating, nil
+}
+
+// Rate sets the current profile's thumb rating for a title.
+func (s *Library) Rate(videoID int, rating string) (EntityState, error) {
+	enum, err := parseThumbRating(rating)
+	if err != nil {
+		return EntityState{}, err
+	}
+	var resp struct {
+		SetEntityThumbRating entityEnvelope `json:"setEntityThumbRating"`
+	}
+	if err := s.client.GraphQL("SetEntityThumbRating", map[string]any{
+		"entityId": entityID(videoID),
+		"rating":   enum,
+	}, &resp); err != nil {
+		return EntityState{}, err
+	}
+	return resp.SetEntityThumbRating.state(videoID)
+}
+
+// AddReminder asks Netflix to remind this profile when a title arrives.
+//
+// Netflix has no reminder for a title that is already available: asking for one
+// puts the title in My List instead, and says so through the flags it returns.
+// The reminder mutations do not return a title, so EntityState.Title is empty.
+func (s *Library) AddReminder(videoID int) (EntityState, error) {
+	return s.reminderMutation("AddReminder", "addUnifiedEntityToRemindMe", videoID)
+}
+
+// RemoveReminder drops a title's release reminder.
+func (s *Library) RemoveReminder(videoID int) (EntityState, error) {
+	return s.reminderMutation("RemoveReminder", "removeUnifiedEntityFromRemindMe", videoID)
+}
+
+// The reminder mutations answer with the entity itself rather than wrapping it,
+// so the envelope is filled from that.
+func (s *Library) reminderMutation(op, field string, videoID int) (EntityState, error) {
+	raw, err := s.entityMutation(op, field, videoID)
+	if err != nil {
+		return EntityState{}, err
+	}
+	var env entityEnvelope
+	if err := json.Unmarshal(raw, &env.Entity); err != nil {
+		return EntityState{}, fmt.Errorf("decode %s result: %w", op, err)
+	}
+	if env.Entity.VideoID == 0 {
+		return EntityState{}, fmt.Errorf("netflix did not accept a reminder for title %d (it may already be available)", videoID)
+	}
+	return env.state(videoID)
+}
+
+// RemoveFromContinueWatching drops a title from the profile's Continue Watching
+// row. It does not erase the viewing history entry.
+func (s *Library) RemoveFromContinueWatching(videoID int) error {
+	var resp struct {
+		RemoveFromContinueWatching struct {
+			Success bool `json:"success"`
+		} `json:"removeFromContinueWatching"`
+	}
+	if err := s.client.GraphQL("RemoveFromContinueWatching", map[string]any{
+		"unifiedEntityId": entityID(videoID),
+	}, &resp); err != nil {
+		return err
+	}
+	if !resp.RemoveFromContinueWatching.Success {
+		return fmt.Errorf("netflix refused to drop title %d from Continue Watching", videoID)
+	}
+	return nil
+}

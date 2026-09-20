@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # release.yml calls this, so a tag is only published if it passes the same
+  # gates a push to main does — on all three platforms.
+  workflow_call:
+
+# Least privilege by default; the security job raises only what it needs.
+# No step consumes event input (titles, branch names, commit messages), so
+# there is no injection surface here.
+#
+# Actions are pinned to a commit, not a tag: a tag can be moved, and a moved tag
+# runs somebody else's code with this workflow's token. The comment after each
+# one is the tag it was resolved from, and dependabot.yml keeps them current —
+# the same rule the Makefile applies to the tools it pins.
+permissions:
+  contents: read
+
+jobs:
+  # The CLI ships for Linux, macOS and Windows (see .goreleaser.yaml), so it is
+  # built and tested on all three rather than cross-compiled and hoped for.
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # one platform failing should not hide the others
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # CGO_ENABLED=0 matches the released binary.
+      - name: Build
+        run: go build ./...
+        env:
+          CGO_ENABLED: 0
+
+      - name: Vet
+        run: go vet ./...
+        env:
+          CGO_ENABLED: 0
+
+      # The race detector needs a C toolchain, which is certain on the Linux and
+      # macOS images. This CLI's only concurrency is a sync.Once and a race is
+      # not platform-specific, so Windows runs the same tests without it rather
+      # than make the build depend on a toolchain that may not be there.
+      - name: Test (race)
+        if: runner.os != 'Windows'
+        run: go test -race ./...
+        env:
+          CGO_ENABLED: 1
+
+      - name: Test
+        if: runner.os == 'Windows'
+        run: go test ./...
+        env:
+          CGO_ENABLED: 0
+
+  # Formatting, linting, dependency drift and the coverage floor say the same
+  # thing on every platform, so they run once. They need make and bash.
+  quality:
+    name: quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # gofmt, go vet, golangci-lint, go.mod drift, race detector, coverage floor.
+      - run: make quality
+      - run: make build
+
+  security:
+    name: security gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # upload-sarif
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # gitleaks scans history, not just the tip
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # govulncheck, osv-scanner, gitleaks, go mod verify.
+      - run: make security
+
+      # The same linters the quality gate runs, as SARIF for code scanning.
+      # The gate above already failed the build on findings; this step exists to
+      # annotate them, so it never decides the outcome.
+      - name: Static analysis report (SARIF)
+        continue-on-error: true
+        run: |
+          go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run \
+            --output.sarif.path=golangci-lint.sarif \
+            --issues-exit-code=0 \
+            ./cmd/... ./internal/...
+
+      - name: Upload SARIF
+        if: always() && hashFiles('golangci-lint.sarif') != ''
+        uses: github/codeql-action/upload-sarif@3ea06614dafe36dec890db3446326e0d40ce53d4 # v3
+        with:
+          sarif_file: golangci-lint.sarif
+          category: golangci-lint

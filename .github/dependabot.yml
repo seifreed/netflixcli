@@ -1,0 +1,19 @@
+# Pinning actions to a commit is only safe if something keeps them current;
+# otherwise a pinned digest quietly ages past its security fixes. This is the
+# other half of that decision. Go modules are watched too, so a dependency
+# advisory does not wait for the next time someone runs the security gate.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "deps"

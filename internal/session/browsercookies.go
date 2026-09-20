@@ -1,0 +1,119 @@
+// Package session handles browser-cookie import and the local Netflix session cache.
+package session
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/browserutils/kooky"
+	_ "github.com/browserutils/kooky/browser/all" // register Chrome/Firefox/Safari/Edge/Brave finders
+	"github.com/seifreed/netflixcli/internal/cookie"
+)
+
+// cookieDomain is the substring every netflix cookie's domain carries; used to
+// pull just the site's cookies out of a browser's (large) cookie store.
+const cookieDomain = "netflix.com"
+
+type browserCookie struct {
+	store storeKey
+	name  string
+	value string
+}
+
+// storeKey identifies one cookie store. A browser name alone is not one: Chrome
+// with a personal and a work profile has two, and they are two accounts.
+type storeKey struct {
+	browser string
+	profile string
+}
+
+// traverseCookies is indirected so cookie selection can be tested without
+// depending on whichever browsers are installed on the host.
+var traverseCookies = kooky.TraverseCookies
+
+// CookiesFromBrowser reads the Netflix session straight out of a browser's
+// cookie store: the user signs in to netflix.com normally and the CLI lifts the
+// resulting cookies (HttpOnly NetflixId included, since this reads the decrypted
+// store and not page JS). browser
+// filters to one of chrome|chromium|firefox|safari|edge|brave; "" reads every
+// installed browser.
+func CookiesFromBrowser(browser string) (Session, error) {
+	browser = strings.ToLower(strings.TrimSpace(browser))
+	if browser != "" && !supportedBrowser(browser) {
+		return Session{}, fmt.Errorf("unsupported browser %q (want chrome|chromium|firefox|safari|edge|brave)", browser)
+	}
+
+	// Collect netflix cookies grouped BY BROWSER, skipping per-store failures so
+	// an uninstalled browser doesn't abort the read of the one actually used.
+	var cookies []browserCookie
+	for c, err := range traverseCookies(context.Background(), kooky.DomainContains(cookieDomain)) {
+		if err != nil || c == nil || c.Name == "" || c.Value == "" {
+			continue
+		}
+		if !cookie.IsNetflixHost(strings.TrimPrefix(strings.TrimSpace(c.Domain), ".")) || !cookie.ValidPair(c.Name, c.Value) {
+			continue
+		}
+		var store storeKey
+		if c.Browser != nil {
+			store = storeKey{strings.ToLower(c.Browser.Browser()), c.Browser.Profile()}
+		}
+		if browser != "" && store.browser != browser {
+			continue
+		}
+		cookies = append(cookies, browserCookie{store: store, name: c.Name, value: c.Value})
+	}
+
+	if cookie, ok := pickSessionCookie(cookies, browser); ok {
+		return Session{Cookie: cookie}, nil
+	}
+
+	where := "your browser"
+	if browser != "" {
+		where = browser
+	}
+	return Session{}, fmt.Errorf("no netflix cookies found in %s — "+
+		"sign in to www.netflix.com in that browser first "+
+		"(or pass --from-browser <chrome|firefox|safari|edge|brave>)", where)
+}
+
+func supportedBrowser(browser string) bool {
+	switch browser {
+	case "chrome", "chromium", "firefox", "safari", "edge", "brave":
+		return true
+	default:
+		return false
+	}
+}
+
+// pickSessionCookie keeps each cookie store whole and prefers the first one
+// carrying a signed-in NetflixId.
+//
+// A store is one profile of one browser. Keying it by browser alone merged
+// Chrome's profiles into a single header, splicing one account's NetflixId onto
+// another's supporting cookies — a session belonging to neither.
+func pickSessionCookie(cookies []browserCookie, want string) (string, bool) {
+	stores := map[storeKey]map[string]string{}
+	var storeOrder []storeKey
+	for _, c := range cookies {
+		if want != "" && c.store.browser != want {
+			continue
+		}
+		if stores[c.store] == nil {
+			stores[c.store] = map[string]string{}
+			storeOrder = append(storeOrder, c.store)
+		}
+		stores[c.store][c.name] = c.value
+	}
+	var fallback string
+	for _, key := range storeOrder {
+		header := cookie.Header(stores[key])
+		if cookie.LooksAuthenticated(header) {
+			return header, true
+		}
+		if fallback == "" {
+			fallback = header
+		}
+	}
+	return fallback, fallback != ""
+}
