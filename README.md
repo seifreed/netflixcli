@@ -42,6 +42,7 @@ make check     # gofmt, vet, tests, build
 | `netflix mylist` | titles saved in this profile's My List |
 | `netflix continue` | titles this profile is part-way through |
 | `netflix liked` | titles this profile gave a thumbs up |
+| `netflix reminders` | titles this profile is waiting for |
 
 ## Write commands
 
@@ -52,6 +53,8 @@ These change the profile's account state:
 | `netflix mylist add <id\|url>` | save a title to My List |
 | `netflix mylist remove <id\|url>` | drop a title from My List |
 | `netflix rate <id\|url> up\|down\|love\|none` | set this profile's thumb rating |
+| `netflix continue remove <id\|url>` | drop a title from Continue Watching (not undoable from the CLI) |
+| `netflix remind add\|remove <id\|url>` | release reminder for a title that is not out yet |
 
 ## Account
 

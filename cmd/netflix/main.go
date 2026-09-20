@@ -156,6 +156,8 @@ WRITE COMMANDS (they change this profile's account state):
   continue remove <id>     drop a title from Continue Watching
                            (the viewing history entry stays)
   remind add|remove <id>   release reminder for a title that is not out yet
+                           (Netflix files an already-available title in My List
+                           instead, and the reply says so)
 
 ACCOUNT:
   profiles                 list the account's profiles (* marks the active one)

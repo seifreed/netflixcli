@@ -46,7 +46,7 @@ These change account state. Run them only on an explicit request.
 | `netflix mylist remove ID\|URL` | Drop a title from My List. |
 | `netflix rate ID\|URL up\|down\|love\|none` | Set this profile's thumb rating. |
 | `netflix continue remove ID\|URL` | Drop a title from Continue Watching. The viewing-history entry stays. Not reversible from the CLI — ask before running it. |
-| `netflix remind add\|remove ID\|URL` | Release reminder for a title that is not out yet. Netflix refuses one for an already-available title. |
+| `netflix remind add\|remove ID\|URL` | Release reminder for a title that is not out yet. Netflix files an **already-available** title in My List instead, so the reply reports the reminder and My List flags as they came back rather than claiming a reminder was set. |
 
 ## Account
 

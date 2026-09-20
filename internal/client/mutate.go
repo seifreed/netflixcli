@@ -102,8 +102,11 @@ func (c *Client) Rate(videoID int, rating string) (EntityState, error) {
 	return resp.SetEntityThumbRating.state()
 }
 
-// AddReminder asks Netflix to remind this profile when a title arrives. Only
-// unreleased titles can carry one.
+// AddReminder asks Netflix to remind this profile when a title arrives.
+//
+// Netflix has no reminder for a title that is already available: asking for one
+// puts the title in My List instead, and says so through the flags it returns.
+// The reminder mutations do not return a title, so EntityState.Title is empty.
 func (c *Client) AddReminder(videoID int) (EntityState, error) {
 	return c.reminderMutation("AddReminder", "addUnifiedEntityToRemindMe", videoID)
 }

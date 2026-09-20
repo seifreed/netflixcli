@@ -22,8 +22,11 @@ profile's lists.
   ends up in shell history — `set-cookie --stdin` exists for that.
 - The catalogue is regional and personalised. Results describe *this* account, not Netflix at large;
   say so when it matters.
-- `mylist add`, `mylist remove` and `rate` change the user's account. Run them only when the user
-  asked for that change. Everything else is read-only.
+- `mylist add`, `mylist remove`, `rate`, `remind` and `continue remove` change the user's account.
+  Run them only when the user asked for that change. Everything else is read-only.
+- `continue remove` cannot be undone from the CLI — confirm before running it.
+- `remind add` on a title that is already available files it in My List instead; report what the
+  command replied, do not claim a reminder was set.
 - Do not invent commands. If something is not in the reference below, it does not exist.
 
 ## Start here

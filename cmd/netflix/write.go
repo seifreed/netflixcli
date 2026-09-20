@@ -140,10 +140,18 @@ func cmdRemind(args []string) error {
 	if done, err := emitStructured(cf, state); done {
 		return err
 	}
-	if state.Reminder {
-		fmt.Printf("%s: Netflix will remind you when it arrives\n", state.Title)
-	} else {
-		fmt.Printf("%s: reminder removed\n", state.Title)
-	}
+	// The reminder mutations answer without a title, so the id is what there is
+	// to name, and the two flags are reported exactly as they came back rather
+	// than narrated: asking to be reminded about an already-available title also
+	// files it in My List, and the response does not distinguish that from a
+	// title that was in My List already.
+	fmt.Printf("title %d — reminder: %s · My List: %s\n", state.ID, yesNo(state.Reminder), yesNo(state.InMyList))
 	return nil
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }
