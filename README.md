@@ -32,6 +32,11 @@ make build     # ./netflix
 | command | what it does |
 | --- | --- |
 | `netflix search <query>` | search the catalogue (`--limit N`) |
+| `netflix title <id\|url>` | full detail: synopsis, cast, genres, runtime, rating (`--similar`) |
+| `netflix browse [surface]` | rows of a browse page: `home`, `my-netflix`, `latest`, `games` or a genre id |
+| `netflix mylist` | titles saved in this profile's My List |
+| `netflix continue` | titles this profile is part-way through |
+| `netflix liked` | titles this profile gave a thumbs up |
 
 ## Session
 
@@ -53,11 +58,21 @@ lang = "es-ES"
 
 ## How it talks to Netflix
 
-The web app sends *persisted* GraphQL operations: an id, not a query document.
-Those ids change with every Netflix build, so the CLI scrapes them out of the
-Akira client bundle once per build and caches the map in
-`~/.netflix/queries.json`. The first command after a Netflix deploy therefore
-downloads that bundle; every later one is a single request.
+Two paths, each the cheapest one for the job:
+
+**Browse surfaces** (home, My Netflix, a genre) come out of the page itself.
+Netflix ships every row it renders as an Apollo cache embedded in the HTML, so
+one page fetch yields My List, Continue Watching and the editorial rows without
+replaying the page-assembler query. Row titles are localised, so the CLI matches
+the personal rows on the feed id Netflix encodes in each row's page actions, not
+on their names.
+
+**Search and title detail** are not in the page, so they go to the GraphQL
+gateway the web app uses. It sends *persisted* operations — an id, not a query
+document — and those ids change with every Netflix build. The CLI therefore
+scrapes the id map out of the Akira client bundle once per build and caches it
+in `~/.netflix/queries.json`: the first command after a Netflix deploy downloads
+that bundle, every later one is a single request.
 
 ## Output for agents
 

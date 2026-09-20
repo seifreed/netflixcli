@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/seifreed/netflixcli/internal/client"
 	"github.com/seifreed/netflixcli/internal/config"
 )
 
@@ -34,6 +35,14 @@ func run(args []string) int {
 	switch args[0] {
 	case "search":
 		err = cmdSearch(args[1:])
+	case "browse":
+		err = cmdBrowse(args[1:])
+	case "mylist", "my-list":
+		err = cmdFeed(client.FeedMyList)(args[1:])
+	case "continue", "continue-watching":
+		err = cmdFeed(client.FeedContinueWatching)(args[1:])
+	case "liked":
+		err = cmdFeed(client.FeedLiked)(args[1:])
 	case "title":
 		err = cmdTitle(args[1:])
 	case "login":
@@ -81,6 +90,13 @@ USAGE:
 READ COMMANDS:
   search <query>           search the catalogue
                            --limit N   cap titles returned (default 48)
+  browse [surface]         rows of a browse page (home by default)
+                           surface: home | my-netflix | latest | games | <genre-id>
+                           --limit N   cap titles per row
+  mylist                   titles saved in this profile's My List
+  continue                 titles this profile is part-way through
+  liked                    titles this profile gave a thumbs up
+                           (all three take --limit N)
   title <id|url>           full detail for one title (synopsis, cast, genres)
                            --similar   also resolve the similar-title ids
 

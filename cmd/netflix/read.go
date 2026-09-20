@@ -122,3 +122,74 @@ func printPeople(label string, names []string) {
 	}
 	fmt.Printf("  %s: %s\n", label, strings.Join(names, ", "))
 }
+
+// cmdBrowse prints the rows of a browse surface — the home page by default.
+func cmdBrowse(args []string) error {
+	fs, cf := newCommonFlags("browse")
+	surface := fs.String("surface", "", "home, my-netflix, latest, games, or a genre id")
+	limit := fs.Int("limit", 0, "max titles per row (0 = whatever the page carries)")
+	parseFlags(fs, args)
+	if positional := strings.TrimSpace(strings.Join(fs.Args(), " ")); positional != "" {
+		*surface = positional
+	}
+	cl := newClient(cf)
+	rows, err := cl.Browse(*surface)
+	if err != nil {
+		return err
+	}
+	rows = capRows(rows, *limit)
+	if done, err := emitStructured(cf, rows); done {
+		return err
+	}
+	if len(rows) == 0 {
+		fmt.Println("(no rows — the surface may not exist in this region)")
+		return nil
+	}
+	for _, row := range rows {
+		fmt.Printf("\n%s\n", row.Name)
+		for _, t := range row.Titles {
+			fmt.Printf("  • %s  [%d]\n", t.Title, t.ID)
+		}
+	}
+	return nil
+}
+
+func capRows(rows []client.Row, limit int) []client.Row {
+	if limit <= 0 {
+		return rows
+	}
+	for i := range rows {
+		if len(rows[i].Titles) > limit {
+			rows[i].Titles = rows[i].Titles[:limit]
+		}
+	}
+	return rows
+}
+
+// cmdFeed prints one personal row of the My Netflix page: My List, Continue
+// Watching, liked titles, reminders or watched trailers.
+func cmdFeed(feed string) func([]string) error {
+	return func(args []string) error {
+		fs, cf := newCommonFlags(feed)
+		limit := fs.Int("limit", 0, "max titles to return")
+		parseFlags(fs, args)
+		cl := newClient(cf)
+		row, err := cl.Feed(feed)
+		if err != nil {
+			return err
+		}
+		titles := row.Titles
+		if *limit > 0 && len(titles) > *limit {
+			titles = titles[:*limit]
+		}
+		if done, err := emitStructured(cf, titles); done {
+			return err
+		}
+		if len(titles) == 0 {
+			fmt.Printf("(%s is empty for this profile)\n", row.Name)
+			return nil
+		}
+		printTitles(titles)
+		return nil
+	}
+}

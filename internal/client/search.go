@@ -48,44 +48,6 @@ type Title struct {
 // TitleURL is the canonical watch page for a Netflix video id.
 func TitleURL(id int) string { return fmt.Sprintf("%s/title/%d", BaseURL, id) }
 
-// pinotPage is the slice of the search response the CLI reads.
-type pinotPage struct {
-	Page struct {
-		Sections struct {
-			Edges []struct {
-				Node struct {
-					TypeName string `json:"__typename"`
-					Entities struct {
-						Edges []struct {
-							Node struct {
-								TypeName      string `json:"__typename"`
-								DisplayString string `json:"displayString"`
-								UnifiedEntity struct {
-									TypeName        string `json:"__typename"`
-									VideoID         int    `json:"videoId"`
-									ContentAdvisory struct {
-										MaturityLevel int `json:"maturityLevel"`
-									} `json:"contentAdvisory"`
-								} `json:"unifiedEntity"`
-								ContextualArtwork struct {
-									Artwork struct {
-										URL string `json:"url"`
-									} `json:"artwork"`
-								} `json:"contextualArtwork"`
-							} `json:"node"`
-						} `json:"edges"`
-						TotalCount int `json:"totalCount"`
-						PageInfo   struct {
-							EndCursor   string `json:"endCursor"`
-							HasNextPage bool   `json:"hasNextPage"`
-						} `json:"pageInfo"`
-					} `json:"entities"`
-				} `json:"node"`
-			} `json:"edges"`
-		} `json:"sections"`
-	} `json:"page"`
-}
-
 // Search queries the catalogue the way the web app's search page does. limit
 // bounds the titles returned; 0 means the web app's own page size.
 func (c *Client) Search(query string, limit int) ([]Title, error) {
@@ -111,39 +73,9 @@ func (c *Client) Search(query string, limit int) ([]Title, error) {
 	if err := c.GraphQL("SearchPageQueryResults", vars, &page); err != nil {
 		return nil, err
 	}
-	titles := gallerySectionTitles(page)
+	titles := page.galleryTitles()
 	if limit > 0 && len(titles) > limit {
 		titles = titles[:limit]
 	}
 	return titles, nil
-}
-
-// gallerySectionTitles flattens the gallery section of a Pinot page. The other
-// section a search returns holds autocomplete suggestions, which carry no video
-// id worth reporting.
-func gallerySectionTitles(page pinotPage) []Title {
-	var titles []Title
-	seen := map[int]bool{}
-	for _, section := range page.Page.Sections.Edges {
-		if section.Node.TypeName != "PinotGallerySection" {
-			continue
-		}
-		for _, edge := range section.Node.Entities.Edges {
-			node := edge.Node
-			id := node.UnifiedEntity.VideoID
-			if id == 0 || seen[id] {
-				continue
-			}
-			seen[id] = true
-			titles = append(titles, Title{
-				ID:            id,
-				Title:         node.DisplayString,
-				Kind:          node.UnifiedEntity.TypeName,
-				URL:           TitleURL(id),
-				MaturityLevel: node.UnifiedEntity.ContentAdvisory.MaturityLevel,
-				Artwork:       node.ContextualArtwork.Artwork.URL,
-			})
-		}
-	}
-	return titles
 }
