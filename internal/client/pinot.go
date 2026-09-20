@@ -1,8 +1,9 @@
 package client
 
 // Netflix builds every catalogue surface — home, genre, My List, search — as a
-// "Pinot" page: sections of entity cards. One response shape therefore serves
-// browse and search alike; only the sections differ.
+// "Pinot" page: sections of entity cards. Browse surfaces are read from the
+// page's own cache (see apollo.go); search has no such page, so its response is
+// decoded here.
 type pinotPage struct {
 	Page struct {
 		Sections struct {
@@ -70,19 +71,6 @@ func (s pinotSection) titles() []Title {
 		}
 	}
 	return out
-}
-
-// rows returns every non-empty section of the page, in page order.
-func (p pinotPage) rows() []Row {
-	var rows []Row
-	for _, edge := range p.Page.Sections.Edges {
-		titles := edge.Node.titles()
-		if len(titles) == 0 {
-			continue
-		}
-		rows = append(rows, Row{Name: edge.Node.DisplayString, Titles: titles})
-	}
-	return rows
 }
 
 // galleryTitles flattens the gallery sections of a page, de-duplicated. Search

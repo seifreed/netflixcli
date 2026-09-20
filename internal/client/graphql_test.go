@@ -66,7 +66,7 @@ func TestGraphQLSendsPersistedOperation(t *testing.T) {
 
 // Netflix answers 200 with an errors array; that is a failure, not data.
 func TestGraphQLSurfacesErrorsInASuccessfulResponse(t *testing.T) {
-	c := graphQLClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c := graphQLClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"errors":[{"message":"nope","extensions":{"errorType":"BAD_REQUEST"}}],"data":null}`))
 	})
 	err := c.GraphQL("DemoQuery", nil, nil)
@@ -79,7 +79,7 @@ func TestGraphQLSurfacesErrorsInASuccessfulResponse(t *testing.T) {
 }
 
 func TestGraphQLRejectsUnknownOperation(t *testing.T) {
-	c := graphQLClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c := graphQLClient(t, func(http.ResponseWriter, *http.Request) {
 		t.Error("an unknown operation must not reach the gateway")
 	})
 	if err := c.GraphQL("NotInThisBuild", nil, nil); err == nil {

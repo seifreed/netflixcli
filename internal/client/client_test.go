@@ -63,7 +63,7 @@ func TestCookieIsWithheldFromForeignHosts(t *testing.T) {
 }
 
 func TestGetTextRefusesOtherOrigins(t *testing.T) {
-	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {})
+	c, _ := testClient(t, func(http.ResponseWriter, *http.Request) {})
 	if _, err := c.GetText("https://evil.example/browse"); err == nil {
 		t.Fatal("want a refusal for a URL outside the configured host")
 	}
@@ -71,7 +71,7 @@ func TestGetTextRefusesOtherOrigins(t *testing.T) {
 
 func TestGetTextRetriesThrottling(t *testing.T) {
 	var calls atomic.Int32
-	c, srv := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		if calls.Add(1) == 1 {
 			w.Header().Set("Retry-After", "0")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -93,7 +93,7 @@ func TestGetTextRetriesThrottling(t *testing.T) {
 
 func TestGetTextGivesUpAfterMaxRetries(t *testing.T) {
 	var calls atomic.Int32
-	c, srv := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
 		w.Header().Set("Retry-After", "0")
 		w.WriteHeader(http.StatusServiceUnavailable)

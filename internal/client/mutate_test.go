@@ -3,15 +3,17 @@ package client
 import "testing"
 
 func TestParseThumbRating(t *testing.T) {
-	for word, want := range map[string]string{
-		"up":      "THUMBS_UP",
-		"UP":      "THUMBS_UP",
-		" down ":  "THUMBS_DOWN",
-		"love":    "THUMBS_WAY_UP",
-		"way-up":  "THUMBS_WAY_UP",
-		"none":    "THUMBS_UNRATED",
-		"unrated": "THUMBS_UNRATED",
-	} {
+	cases := []struct{ word, want string }{
+		{"up", "THUMBS_UP"},
+		{"UP", "THUMBS_UP"},
+		{"  down  ", "THUMBS_DOWN"}, // surrounding space is trimmed
+		{"love", "THUMBS_WAY_UP"},
+		{"way-up", "THUMBS_WAY_UP"},
+		{"none", "THUMBS_UNRATED"},
+		{"unrated", "THUMBS_UNRATED"},
+	}
+	for _, tc := range cases {
+		word, want := tc.word, tc.want
 		got, err := ParseThumbRating(word)
 		if err != nil {
 			t.Errorf("ParseThumbRating(%q): %v", word, err)
