@@ -2,6 +2,7 @@ package client
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -117,5 +118,121 @@ func TestSwitchingProfilesRereadsTheAccount(t *testing.T) {
 	}
 	if loads != 2 {
 		t.Errorf("the page was loaded %d times, want 2", loads)
+	}
+}
+
+// switchStub serves the member page everywhere, and answers /SwitchProfile the
+// way Netflix does: a redirect whose Set-Cookie headers carry the new session.
+func switchStub(t *testing.T, setCookies []string) (*Client, *int) {
+	t.Helper()
+	switches := 0
+	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/SwitchProfile") {
+			switches++
+			for _, c := range setCookies {
+				w.Header().Add("Set-Cookie", c)
+			}
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		if _, err := w.Write([]byte(memberPage)); err != nil {
+			t.Errorf("stub write: %v", err)
+		}
+	})
+	c.Cookie = "NetflixId=old; nfvdid=keep"
+	return c, &switches
+}
+
+func TestUseProfileSwitchesAndRefreshesTheSession(t *testing.T) {
+	c, switches := switchStub(t, []string{"NetflixId=new; Path=/", "extra=1; Path=/"})
+
+	profile, updated, err := c.Account.UseProfile("kid")
+	if err != nil {
+		t.Fatalf("UseProfile: %v", err)
+	}
+	if *switches != 1 {
+		t.Errorf("SwitchProfile was called %d times, want 1", *switches)
+	}
+	if profile.GUID != "CCC" {
+		t.Errorf("switched to %q, want CCC — the name match is case-insensitive", profile.GUID)
+	}
+	for _, want := range []string{"NetflixId=new", "nfvdid=keep", "extra=1"} {
+		if !strings.Contains(updated, want) {
+			t.Errorf("refreshed cookie %q is missing %q", updated, want)
+		}
+	}
+	if c.Cookie != updated {
+		t.Error("the client kept the old cookie")
+	}
+	if c.ctx != nil {
+		t.Error("the bootstrap survived the switch; it belongs to the profile that issued it")
+	}
+}
+
+// The profile the session already acts as needs no request, and must not look
+// like a failed switch.
+func TestUseProfileOnTheCurrentProfileIsANoOp(t *testing.T) {
+	c, switches := switchStub(t, nil)
+	before := c.Cookie
+
+	profile, updated, err := c.Account.UseProfile("Grace")
+	if err != nil {
+		t.Fatalf("UseProfile: %v", err)
+	}
+	if !profile.Current || updated != before {
+		t.Errorf("profile=%+v cookie=%q, want the current profile and an untouched cookie", profile, updated)
+	}
+	if *switches != 0 {
+		t.Errorf("SwitchProfile was called %d times for a profile already in use", *switches)
+	}
+}
+
+func TestUseProfileRefusesAPinLockedProfile(t *testing.T) {
+	c, switches := switchStub(t, nil)
+
+	if _, _, err := c.Account.UseProfile("Ada"); err == nil {
+		t.Fatal("want an error for a PIN-locked profile")
+	} else if !strings.Contains(err.Error(), "PIN-locked") {
+		t.Errorf("error %q does not say the profile is PIN-locked", err)
+	}
+	if *switches != 0 {
+		t.Errorf("SwitchProfile was called %d times for a PIN-locked profile", *switches)
+	}
+}
+
+// Netflix answers a refused switch with a redirect that changes no cookie. The
+// session must not be reported as switched.
+func TestUseProfileReportsARefusedSwitch(t *testing.T) {
+	c, _ := switchStub(t, nil)
+	before := c.Cookie
+
+	if _, _, err := c.Account.UseProfile("Kid"); err == nil {
+		t.Fatal("want an error when netflix changes no cookie")
+	} else if !strings.Contains(err.Error(), "did not switch") {
+		t.Errorf("error %q does not say the switch was refused", err)
+	}
+	if c.Cookie != before {
+		t.Error("a refused switch changed the session cookie")
+	}
+}
+
+func TestResolveProfileNamesTheOnesItHas(t *testing.T) {
+	c, _ := switchStub(t, nil)
+
+	if _, err := c.Account.ResolveProfile("  "); err == nil {
+		t.Error("want an error for a blank profile")
+	}
+	_, err := c.Account.ResolveProfile("Nobody")
+	if err == nil {
+		t.Fatal("want an error for a profile that does not exist")
+	}
+	for _, name := range []string{"Ada", "Grace", "Kid"} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("error %q does not list %q as an option", err, name)
+		}
+	}
+	byGUID, err := c.Account.ResolveProfile("AAA")
+	if err != nil || byGUID.Name != "Ada" {
+		t.Errorf("ResolveProfile by guid = %+v, %v", byGUID, err)
 	}
 }

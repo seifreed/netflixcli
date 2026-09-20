@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-FLOOR="${COVERAGE_FLOOR:-65}"
+FLOOR="${COVERAGE_FLOOR:-75}"
 
 profile="$(mktemp)"
 trap 'rm -f "$profile"' EXIT
