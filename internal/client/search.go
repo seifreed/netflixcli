@@ -48,8 +48,9 @@ type Title struct {
 // TitleURL is the canonical watch page for a Netflix video id.
 func TitleURL(id int) string { return fmt.Sprintf("%s/title/%d", BaseURL, id) }
 
-// Search queries the catalogue the way the web app's search page does. limit
-// bounds the titles returned; 0 means the web app's own page size.
+// Search queries the catalogue the way the web app's search page does, paging
+// the result gallery until it has limit titles or Netflix runs out. limit 0
+// returns the first page.
 func (c *Client) Search(query string, limit int) ([]Title, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -73,9 +74,58 @@ func (c *Client) Search(query string, limit int) ([]Title, error) {
 	if err := c.GraphQL("SearchPageQueryResults", vars, &page); err != nil {
 		return nil, err
 	}
-	titles := page.galleryTitles()
+	gallery, ok := page.gallerySection()
+	if !ok {
+		return nil, nil
+	}
+
+	var titles []Title
+	seen := map[int]bool{}
+	appendPage := func(section pinotSection) int {
+		added := 0
+		for _, title := range section.titles() {
+			if seen[title.ID] {
+				continue
+			}
+			seen[title.ID] = true
+			titles = append(titles, title)
+			added++
+		}
+		return added
+	}
+	appendPage(gallery)
+
+	for limit > len(titles) && gallery.Entities.PageInfo.HasNextPage && gallery.ID != "" {
+		next, err := c.searchPage(gallery.ID, gallery.Entities.PageInfo.EndCursor, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		// A page that adds nothing new would otherwise loop for ever.
+		if appendPage(next) == 0 {
+			break
+		}
+		gallery = next
+	}
 	if limit > 0 && len(titles) > limit {
 		titles = titles[:limit]
 	}
 	return titles, nil
+}
+
+// searchPage fetches the next slice of a result gallery, the way the search
+// page does when the user scrolls to the end of it.
+func (c *Client) searchPage(galleryID, cursor string, pageSize int) (pinotSection, error) {
+	vars := artworkParams()
+	vars["galleryId"] = galleryID
+	vars["endCursor"] = cursor
+	vars["pageSize"] = pageSize
+	vars["eddEnabled"] = false
+	vars["fetchHighResCards"] = false
+	var resp struct {
+		Node pinotSection `json:"node"`
+	}
+	if err := c.GraphQL("FetchMoreSearchGalleryItems", vars, &resp); err != nil {
+		return pinotSection{}, err
+	}
+	return resp.Node, nil
 }

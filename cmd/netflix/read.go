@@ -10,7 +10,7 @@ import (
 // cmdSearch queries the catalogue the way the web app's search page does.
 func cmdSearch(args []string) error {
 	fs, cf := newCommonFlags("search")
-	limit := fs.Int("limit", 0, "max titles to return (0 = one page, 48)")
+	limit := fs.Int("limit", 0, "how many titles to return; pages past the first 48 (0 = one page)")
 	parseFlags(fs, args)
 	query := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if query == "" {

@@ -16,6 +16,7 @@ type pinotPage struct {
 
 type pinotSection struct {
 	TypeName      string `json:"__typename"`
+	ID            string `json:"_id"` // the node id pagination asks for more by
 	DisplayString string `json:"displayString"`
 	Entities      struct {
 		Edges []struct {
@@ -73,22 +74,13 @@ func (s pinotSection) titles() []Title {
 	return out
 }
 
-// galleryTitles flattens the gallery sections of a page, de-duplicated. Search
-// answers with one gallery section plus a suggestion section the CLI ignores.
-func (p pinotPage) galleryTitles() []Title {
-	var titles []Title
-	seen := map[int]bool{}
+// gallerySection returns the page's gallery of results. Search answers with one
+// gallery section plus a suggestion section the CLI ignores.
+func (p pinotPage) gallerySection() (pinotSection, bool) {
 	for _, edge := range p.Page.Sections.Edges {
-		if edge.Node.TypeName != "PinotGallerySection" {
-			continue
-		}
-		for _, title := range edge.Node.titles() {
-			if seen[title.ID] {
-				continue
-			}
-			seen[title.ID] = true
-			titles = append(titles, title)
+		if edge.Node.TypeName == "PinotGallerySection" {
+			return edge.Node, true
 		}
 	}
-	return titles
+	return pinotSection{}, false
 }

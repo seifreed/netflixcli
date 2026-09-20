@@ -32,7 +32,7 @@ make check     # gofmt, vet, tests, build
 
 | command | what it does |
 | --- | --- |
-| `netflix search <query>` | search the catalogue (`--limit N`) |
+| `netflix search <query>` | search the catalogue; `--limit N` pages past the first 48 |
 | `netflix title <id\|url>` | full detail: synopsis, cast, genres, runtime, rating (`--similar`) |
 | `netflix seasons <show-id>` | a show's seasons |
 | `netflix episodes <show-id>` | a season's episodes (`--season N`, `--all`, `--limit N`) |

@@ -116,7 +116,7 @@ USAGE:
 
 READ COMMANDS:
   search <query>           search the catalogue
-                           --limit N   cap titles returned (default 48)
+                           --limit N   how many titles (pages past the first 48)
   browse [surface]         rows of a browse page (home by default)
                            surface: home | my-netflix | latest | games | <genre-id>
                            --limit N   cap titles per row
