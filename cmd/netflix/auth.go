@@ -26,7 +26,7 @@ func cmdLogin(args []string) error {
 	if err := session.SaveSession(s); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "saved session cookie (%d bytes) → %s/session.json\n", len(s.Cookie), config.Dir())
+	reportSaved("saved session cookie", s)
 	if !cookie.LooksAuthenticated(s.Cookie) {
 		stderrLogf("cookie carries no NetflixId — sign in to www.netflix.com in that browser, then re-run")
 	}
@@ -71,7 +71,7 @@ func cmdImportHar(args []string) error {
 	if err := session.SaveSession(s); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "imported session cookie (%d bytes) → %s/session.json\n", len(s.Cookie), config.Dir())
+	reportSaved("imported session cookie", s)
 	return emitSavedSession(cf, s)
 }
 
@@ -101,11 +101,20 @@ func cmdSetCookie(args []string) error {
 	if err := session.SaveSession(s); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "saved cookie → %s/session.json\n", config.Dir())
+	reportSaved("saved cookie", s)
 	if !cookie.LooksAuthenticated(rawCookie) {
 		stderrLogf("cookie has no NetflixId entry — run `netflix whoami` to check whether it is accepted")
 	}
 	return emitSavedSession(cf, s)
+}
+
+// reportSaved says where the session landed, and warns when the directory it
+// landed in is one other users on the machine can reach.
+func reportSaved(what string, s session.Session) {
+	fmt.Fprintf(os.Stderr, "%s (%d bytes) → %s/session.json\n", what, len(s.Cookie), config.Dir())
+	if warning := config.SharedDirWarning(); warning != "" {
+		stderrLogf("%s", warning)
+	}
 }
 
 func emitSavedSession(cf *common, s session.Session) error {

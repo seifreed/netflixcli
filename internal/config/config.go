@@ -51,8 +51,29 @@ func LoadConfig() (Config, error) {
 	return c, err
 }
 
-// ensureDir creates the config dir (0700; it holds secrets) if absent.
+// ensureDir creates the config dir (0700; it holds secrets) if absent. It does
+// not relax or tighten one that already exists — see SharedDirWarning.
 func ensureDir() error { return os.MkdirAll(Dir(), 0o700) }
+
+// SharedDirWarning describes how the config dir is exposed to other users on
+// the machine, or "" when it is not. The files in it are written 0600, but a
+// directory others can write lets them replace the stored session with one of
+// their own — after which this CLI reads and writes somebody else's account.
+//
+// MkdirAll only sets the mode when it creates the directory, so one that was
+// already there keeps whatever it had.
+func SharedDirWarning() string {
+	info, err := os.Stat(Dir())
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+	perm := info.Mode().Perm()
+	if perm&0o077 == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s is mode %#o — other users on this machine can reach the stored session; `chmod 700 %s`",
+		Dir(), perm, Dir())
+}
 
 func statePath(name string) (string, error) {
 	if name == "" || name == "." || name == ".." || filepath.Base(name) != name {

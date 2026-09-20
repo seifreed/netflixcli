@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -77,5 +78,42 @@ func TestLoadConfigReadsTOML(t *testing.T) {
 	}
 	if cfg.Auth.Cookie != "NetflixId=x" || cfg.Defaults.Profile != "Ada" || cfg.Defaults.Lang != "en" {
 		t.Errorf("config = %+v, want the file's values", cfg)
+	}
+}
+
+// The files are 0600, but a directory other users can write lets them replace
+// the stored session with one of their own — after which the CLI reads and
+// writes somebody else's account. MkdirAll only sets the mode when it creates
+// the directory, so one that was already there keeps whatever it had.
+func TestSharedDirWarning(t *testing.T) {
+	for perm, want := range map[os.FileMode]bool{
+		0o700: false,
+		0o500: false,
+		0o750: true, // readable by the group
+		0o770: true,
+		0o777: true,
+		0o701: true, // others can traverse and write
+	} {
+		dir := t.TempDir()
+		if err := os.Chmod(dir, perm); err != nil {
+			t.Fatalf("chmod %#o: %v", perm, err)
+		}
+		t.Setenv("NETFLIX_CONFIG_DIR", dir)
+		warning := SharedDirWarning()
+		if got := warning != ""; got != want {
+			t.Errorf("mode %#o warned = %v, want %v (%q)", perm, got, want, warning)
+		}
+		if want && !strings.Contains(warning, "chmod 700") {
+			t.Errorf("mode %#o: warning %q does not say how to fix it", perm, warning)
+		}
+		os.Chmod(dir, 0o700) // let t.TempDir clean up
+	}
+}
+
+// A directory that is not there yet is not a warning; Save creates it 0700.
+func TestSharedDirWarningIgnoresAMissingDir(t *testing.T) {
+	t.Setenv("NETFLIX_CONFIG_DIR", filepath.Join(t.TempDir(), "not-created-yet"))
+	if warning := SharedDirWarning(); warning != "" {
+		t.Errorf("warned about a directory that does not exist: %q", warning)
 	}
 }
