@@ -9,8 +9,8 @@ GOVULNCHECK   ?= golang.org/x/vuln/cmd/govulncheck@v1.8.0
 OSV_SCANNER   ?= github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.2.4
 GITLEAKS      ?= github.com/zricethezav/gitleaks/v8@v8.29.0
 
-.PHONY: build test cover fmt vet tidy lint race coverage-gate \
-        quality security gate check clean
+.PHONY: build test cover fmt vet tidy tidy-check lint race coverage-gate \
+        vulncheck osv secrets modverify quality security gate check clean
 
 build:
 	CGO_ENABLED=0 go build -o $(BIN) ./cmd/netflix

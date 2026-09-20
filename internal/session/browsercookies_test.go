@@ -9,7 +9,8 @@ import (
 	"github.com/browserutils/kooky"
 )
 
-// stubBrowser is the bit of kooky's BrowserInfo that cookie selection reads.
+// stubBrowser stands in for a browser in kooky's cookie store. All four methods
+// are here because kooky.BrowserInfo requires them; only Browser() is read.
 type stubBrowser struct{ name string }
 
 func (b stubBrowser) Browser() string        { return b.name }
