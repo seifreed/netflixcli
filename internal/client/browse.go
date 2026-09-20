@@ -75,15 +75,22 @@ func (c *Client) Browse(surface string) ([]Row, error) {
 
 // Feed returns one personal row of the My Netflix page — My List, Continue
 // Watching, liked titles, reminders or watched trailers.
+//
+// Netflix occasionally renders the page without one of these rows, so a miss is
+// retried once before it is reported: a single reload has been enough every
+// time it has been observed.
 func (c *Client) Feed(feed string) (Row, error) {
-	rows, err := c.Browse(SurfaceMyNetflix)
-	if err != nil {
-		return Row{}, err
-	}
-	for _, row := range rows {
-		if row.Feed == feed {
-			return row, nil
+	for attempt := 0; attempt < 2; attempt++ {
+		rows, err := c.Browse(SurfaceMyNetflix)
+		if err != nil {
+			return Row{}, err
 		}
+		for _, row := range rows {
+			if row.Feed == feed {
+				return row, nil
+			}
+		}
+		c.logf("netflix rendered My Netflix without the %q row — reloading", feed)
 	}
 	return Row{}, fmt.Errorf("netflix did not render a %q row for this profile", feed)
 }
