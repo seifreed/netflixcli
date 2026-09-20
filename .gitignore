@@ -1,3 +1,5 @@
 /netflix
 /dist/
 *.har
+.codegraph/
+.cursor/

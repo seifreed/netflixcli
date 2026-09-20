@@ -4,7 +4,7 @@ import "testing"
 
 func TestParseTitleID(t *testing.T) {
 	for raw, want := range map[string]int{
-		"70095139": 70095139,
+		"70095139":                                    70095139,
 		"https://www.netflix.com/title/70095139":      70095139,
 		"https://www.netflix.com/es/title/70095139/":  70095139,
 		"https://www.netflix.com/watch/80100172?t=10": 80100172,
