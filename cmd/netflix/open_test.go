@@ -58,3 +58,52 @@ func TestOpenWatchGoesToThePlayer(t *testing.T) {
 		t.Errorf("opened %q, want %q — a trailing slash on the host must not double up", *opened, want)
 	}
 }
+
+// `open` hands a string to a program that decides what to do with it. Anything
+// that is not an http(s) URL — another scheme, or a value the opener reads as a
+// flag — must not get that far. NETFLIX_BASE_URL is what shapes it.
+func TestOpenRefusesWhatIsNotAWebURL(t *testing.T) {
+	for _, base := range []string{
+		"file:///etc",
+		"-a /Applications/Calculator.app",
+		"x-man-page://ls",
+		"javascript:alert(1)",
+		"not a url at all",
+		"https://",
+	} {
+		t.Setenv("NETFLIX_CONFIG_DIR", t.TempDir())
+		t.Setenv("NETFLIX_BASE_URL", base)
+		opened := stubLaunch(t)
+
+		code, _ := runCommand(t, "open", "80100172")
+		if code != exitUsage {
+			t.Errorf("NETFLIX_BASE_URL=%q exited %d, want %d", base, code, exitUsage)
+		}
+		if *opened != "" {
+			t.Errorf("NETFLIX_BASE_URL=%q reached the opener as %q", base, *opened)
+		}
+	}
+}
+
+// The gate at the boundary stands on its own, whatever built the string.
+func TestLaunchBrowserRefusesANonWebURL(t *testing.T) {
+	for _, target := range []string{"file:///etc/passwd", "-a Calculator", "ftp://host/x", ""} {
+		if err := launchBrowser(target); err == nil {
+			t.Errorf("launchBrowser(%q) returned no error", target)
+		}
+	}
+}
+
+// A proxy or mock on localhost is still a legitimate base.
+func TestOpenAcceptsALocalBase(t *testing.T) {
+	t.Setenv("NETFLIX_CONFIG_DIR", t.TempDir())
+	t.Setenv("NETFLIX_BASE_URL", "http://127.0.0.1:8080")
+	opened := stubLaunch(t)
+
+	if code, _ := runCommand(t, "open", "80100172"); code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	if want := "http://127.0.0.1:8080/title/80100172"; *opened != want {
+		t.Errorf("opened %q, want %q", *opened, want)
+	}
+}

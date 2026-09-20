@@ -6,6 +6,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -55,23 +56,42 @@ func newOutputFlags(name string) (*flag.FlagSet, *common) {
 // pointing where it did. `profile use` is what changes it for good.
 // baseURL is the page host the CLI talks to: the public site, unless
 // NETFLIX_BASE_URL points at a debugging proxy or a mock.
-func baseURL() string {
-	if u := os.Getenv("NETFLIX_BASE_URL"); u != "" {
-		return u
+//
+// It must be an http(s) origin. Whatever is built from it is handed to the
+// system browser by `open`, and to the operating system a "URL" that is not one
+// is just an argument — `file://`, a custom scheme, or a value beginning with a
+// dash that the opener reads as a flag.
+func baseURL() (string, error) {
+	raw := os.Getenv("NETFLIX_BASE_URL")
+	if raw == "" {
+		return client.BaseURL, nil
 	}
-	return client.BaseURL
+	if !isWebURL(raw) {
+		return "", usagef("NETFLIX_BASE_URL must be an http(s) URL, got %q", raw)
+	}
+	return raw, nil
+}
+
+// isWebURL reports whether raw is an absolute http(s) URL with a host.
+func isWebURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 func newClient(c *common) (*client.Client, error) {
+	base, err := baseURL()
+	if err != nil {
+		return nil, err
+	}
 	cl := client.New()
 	cl.Logf = stderrLogf
-	cl.BaseURL = baseURL()
+	cl.BaseURL = base
 	if u := os.Getenv("NETFLIX_GRAPHQL_URL"); u != "" {
 		cl.GraphQLURL = u
 	}
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		stderrLogf("config.toml could not be read (%v) — using defaults", err)
+	cfg, cfgErr := config.LoadConfig()
+	if cfgErr != nil {
+		stderrLogf("config.toml could not be read (%v) — using defaults", cfgErr)
 	}
 	if v := firstNonEmpty(c.lang, cfg.Defaults.Lang); v != "" {
 		cl.Lang = v

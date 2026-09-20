@@ -24,7 +24,11 @@ func cmdOpen(args []string) error {
 	// Handing a URL to the browser needs no session: building a client here also
 	// bootstrapped it and switched profile when one is configured, so `open`
 	// failed on a stale cookie it was never going to use.
-	target := fmt.Sprintf("%s/%s/%d", strings.TrimRight(baseURL(), "/"), page, id)
+	base, err := baseURL()
+	if err != nil {
+		return err
+	}
+	target := fmt.Sprintf("%s/%s/%d", strings.TrimRight(base, "/"), page, id)
 	if err := launch(target); err != nil {
 		return fmt.Errorf("open title: %w", err)
 	}
@@ -38,6 +42,12 @@ func cmdOpen(args []string) error {
 var launch = launchBrowser
 
 func launchBrowser(target string) error {
+	// The last gate before the string leaves the process as an argument to a
+	// program that decides what to do with it. Anything that is not an http(s)
+	// URL — another scheme, or a value the opener reads as a flag — stops here.
+	if !isWebURL(target) {
+		return fmt.Errorf("refusing to hand %q to the system browser: not an http(s) URL", target)
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		return exec.Command("open", target).Run() // #nosec G204 -- command name is fixed by the platform.
