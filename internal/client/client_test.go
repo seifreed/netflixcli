@@ -214,3 +214,93 @@ func TestExplicitUserAgentIsNotOverwritten(t *testing.T) {
 		t.Errorf("user-agent = %q, want the caller's", seen)
 	}
 }
+
+// Setting CheckRedirect replaces Go's own limit of ten, so the policy has to
+// carry one. Without it a server redirecting to itself was followed until the
+// client timeout: hundreds of requests for a single command.
+func TestRedirectChainIsBounded(t *testing.T) {
+	hops := 0
+	c, srv := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		hops++
+		if hops > maxRedirects*3 {
+			// Fail loudly rather than let the suite hang on a real regression.
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.Redirect(w, r, r.URL.Path, http.StatusFound)
+	})
+	c.Cookie = "NetflixId=stub"
+
+	_, err := c.getText(srv.URL + "/browse")
+	if err == nil {
+		t.Fatal("want an error once the redirect budget is spent")
+	}
+	if hops > maxRedirects {
+		t.Errorf("followed %d redirects, want at most %d", hops, maxRedirects)
+	}
+	if !strings.Contains(err.Error(), "stopped after") {
+		t.Errorf("error %q does not say the chain was cut short", err)
+	}
+}
+
+// A redirect within the same origin is still followed, so a trailing-slash or
+// locale redirect on netflix.com keeps working.
+func TestSameOriginRedirectIsFollowed(t *testing.T) {
+	c, srv := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/browse" {
+			http.Redirect(w, r, "/browse/", http.StatusFound)
+			return
+		}
+		if _, err := w.Write([]byte("<html>landed</html>")); err != nil {
+			t.Errorf("stub write: %v", err)
+		}
+	})
+	c.Cookie = "NetflixId=stub"
+
+	got, err := c.getText(srv.URL + "/browse")
+	if err != nil {
+		t.Fatalf("getText: %v", err)
+	}
+	if !strings.Contains(got, "landed") {
+		t.Errorf("body = %q, want the redirect to have been followed", got)
+	}
+}
+
+// The redirect policy is what keeps a session cookie from following a redirect
+// off netflix.com. Go strips sensitive headers across domains on its own; this
+// stops the request as well, and it is worth pinning either way.
+func TestRedirectPolicyStopsAtAnotherOrigin(t *testing.T) {
+	c := New()
+	c.Cookie = "NetflixId=secret"
+
+	req := func(raw string) *http.Request {
+		r, err := http.NewRequest("GET", raw, nil)
+		if err != nil {
+			t.Fatalf("new request %q: %v", raw, err)
+		}
+		return r
+	}
+	const from = "https://www.netflix.com/browse"
+
+	for _, tc := range []struct {
+		name, to string
+		follow   bool
+	}{
+		{"same origin", "https://www.netflix.com/browse/my-list", true},
+		{"another netflix host", "https://web.prod.cloud.netflix.com/x", false},
+		{"downgraded to cleartext", "http://www.netflix.com/browse", false},
+		{"another site entirely", "https://evil.example/browse", false},
+		{"lookalike host", "https://netflix.com.evil.example/", false},
+	} {
+		err := c.HTTP.CheckRedirect(req(tc.to), []*http.Request{req(from)})
+		if followed := err == nil; followed != tc.follow {
+			t.Errorf("%s: followed = %v, want %v (err %v)", tc.name, followed, tc.follow, err)
+		}
+	}
+
+	// With no cookie there is nothing to protect, so a redirect is followed.
+	c.Cookie = ""
+	if err := c.HTTP.CheckRedirect(req("https://evil.example/"), []*http.Request{req(from)}); err != nil {
+		t.Errorf("without a cookie the redirect should be followed, got %v", err)
+	}
+}

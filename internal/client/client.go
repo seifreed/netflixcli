@@ -91,6 +91,13 @@ func New() *Client {
 	hc := &http.Client{Timeout: 30 * time.Second}
 	c := &Client{HTTP: hc, BaseURL: BaseURL, GraphQLURL: GraphQLEndpoint, UserAgent: DefaultUA, Lang: defaultLang}
 	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		// Setting CheckRedirect at all replaces Go's own limit of ten, so this
+		// policy has to carry one. Without it a server that redirects to itself
+		// was followed until the client timeout — hundreds of requests, sent by
+		// us, for one command.
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("stopped after %d redirects", maxRedirects)
+		}
 		if len(via) > 0 && cookie.ValidHeader(c.Cookie) && trustedCookieRequest(via[0].URL.String()) {
 			initial := via[0].URL
 			if !strings.EqualFold(initial.Scheme, req.URL.Scheme) || !strings.EqualFold(initial.Host, req.URL.Host) {
@@ -111,6 +118,10 @@ func New() *Client {
 }
 
 const maxBodyBytes = 32 << 20
+
+// maxRedirects bounds a redirect chain, matching the limit Go applies when a
+// client has no policy of its own.
+const maxRedirects = 10
 
 // do sends req, reads the (capped) body, and maps a non-2xx status to *APIError.
 func (c *Client) do(req *http.Request) ([]byte, error) {
