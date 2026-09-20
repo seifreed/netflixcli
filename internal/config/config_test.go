@@ -106,7 +106,10 @@ func TestSharedDirWarning(t *testing.T) {
 		if want && !strings.Contains(warning, "chmod 700") {
 			t.Errorf("mode %#o: warning %q does not say how to fix it", perm, warning)
 		}
-		os.Chmod(dir, 0o700) // let t.TempDir clean up
+		// Restore a mode t.TempDir can clean up.
+		if err := os.Chmod(dir, 0o700); err != nil {
+			t.Fatalf("restore mode: %v", err)
+		}
 	}
 }
 
