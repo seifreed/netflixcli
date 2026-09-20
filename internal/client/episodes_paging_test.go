@@ -40,9 +40,11 @@ func episodeStub(t *testing.T, seasonLen int) (*Client, *[]int) {
 		for i := from; i < to; i++ {
 			edges = append(edges, fmt.Sprintf(`{"node":{"videoId":%d,"number":%d,"title":"E%d"}}`, 900+i, i+1, i+1))
 		}
-		fmt.Fprintf(w, `{"data":{"videos":[{"episodes":{"edges":[%s],
+		if _, err := fmt.Fprintf(w, `{"data":{"videos":[{"episodes":{"edges":[%s],
 			"pageInfo":{"endCursor":"at-%d","hasNextPage":%t}}}]}}`,
-			strings.Join(edges, ","), to, to < seasonLen)
+			strings.Join(edges, ","), to, to < seasonLen); err != nil {
+			t.Errorf("stub write: %v", err)
+		}
 	})
 	c.queries.Ops["PreviewModalEpisodeSelectorSeasonEpisodes"] = "eps-1"
 	return c, &counts
@@ -101,9 +103,11 @@ func TestEpisodesStopsOnAStuckCursor(t *testing.T) {
 	calls := 0
 	c := graphQLClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		calls++
-		fmt.Fprint(w, `{"data":{"videos":[{"episodes":{
+		if _, err := fmt.Fprint(w, `{"data":{"videos":[{"episodes":{
 			"edges":[{"node":{"videoId":901,"number":1,"title":"E1"}}],
-			"pageInfo":{"endCursor":"stuck","hasNextPage":true}}}]}}`)
+			"pageInfo":{"endCursor":"stuck","hasNextPage":true}}}]}}`); err != nil {
+			t.Errorf("stub write: %v", err)
+		}
 	})
 	c.queries.Ops["PreviewModalEpisodeSelectorSeasonEpisodes"] = "eps-1"
 
