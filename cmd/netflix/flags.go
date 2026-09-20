@@ -132,11 +132,17 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-// operand returns the command's positional argument, joined and trimmed, or a
-// usage error naming the right spelling. Operands are validated before the
-// client is built, so a typo costs no request.
+// optionalOperand returns the command's positional argument, joined and
+// trimmed, or "" when it was not given.
+func optionalOperand(fs *flag.FlagSet) string {
+	return strings.TrimSpace(strings.Join(fs.Args(), " "))
+}
+
+// operand returns the command's positional argument, or a usage error naming
+// the right spelling. Operands are validated before the client is built, so a
+// typo costs no request.
 func operand(fs *flag.FlagSet, usage string) (string, error) {
-	value := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	value := optionalOperand(fs)
 	if value == "" {
 		return "", fmt.Errorf("usage: %s", usage)
 	}

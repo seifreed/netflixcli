@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/seifreed/netflixcli/internal/client"
 )
@@ -46,7 +45,7 @@ func cmdGenres(args []string) error {
 	if err != nil {
 		return err
 	}
-	query := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	query := optionalOperand(fs)
 	genres = client.MatchGenres(genres, query)
 	return output(cf, genres, func() {
 		if len(genres) == 0 {

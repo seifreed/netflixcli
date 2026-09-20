@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/seifreed/netflixcli/internal/client"
 )
@@ -13,7 +12,7 @@ func cmdBrowse(args []string) error {
 	surface := fs.String("surface", "", "home, my-netflix, or a genre id")
 	limit := fs.Int("limit", 0, "max titles per row (0 = whatever the page carries)")
 	parseFlags(fs, args)
-	if positional := strings.TrimSpace(strings.Join(fs.Args(), " ")); positional != "" {
+	if positional := optionalOperand(fs); positional != "" {
 		*surface = positional
 	}
 	cl, err := newClient(cf)
