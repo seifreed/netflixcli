@@ -43,6 +43,7 @@ where the user is signed in — never to ask for credentials.
 | "is X on Netflix?", "find me …" | `netflix search "<query>" --limit 10` |
 | detail: plot, cast, year, runtime, rating | `netflix title <id\|url>` |
 | "something like X" | `netflix title <id> --similar` |
+| "how many seasons / what are the episodes?" | `netflix seasons <id>` then `netflix episodes <id> --season N` |
 | what is on the home page / a genre | `netflix browse [home\|latest\|games\|<genre-id>]` |
 | "what's on my list?" | `netflix mylist` |
 | "what am I in the middle of?" | `netflix continue` |

@@ -21,6 +21,8 @@ Common flags, valid anywhere after the command: `--json`, `--jsonl`, `--toon`, `
 |---|---|
 | `netflix search QUERY [--limit N]` | Catalogue search. Default page is 48 titles. |
 | `netflix title ID\|URL [--similar]` | Synopsis, cast, directors, writers, genres, mood tags, runtime, certification, playback badges, watch status, thumb rating, My List membership. `--similar` resolves the related ids to names in one batched call. |
+| `netflix seasons SHOW-ID\|URL` | A show's seasons: number, title, episode count and the season id the next command needs. Errors clearly for a movie. |
+| `netflix episodes SHOW-ID\|URL [--season N] [--all] [--limit N]` | Episodes with number, title, synopsis, runtime, and a resume marker where the profile left off. Defaults to the first season. |
 | `netflix browse [SURFACE] [--limit N]` | Rows of a browse page. Surfaces: `home` (default), `my-netflix`, `latest`, `games`, or a genre id such as `83`. `--limit` caps titles per row. |
 | `netflix mylist [--limit N]` | Titles in this profile's My List. |
 | `netflix continue [--limit N]` | Titles this profile is part-way through. |
