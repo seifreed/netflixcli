@@ -47,7 +47,9 @@ func TestReorderArgsKeepsNegativeNumbers(t *testing.T) {
 	}
 }
 
-func TestEmitStructuredPicksFormat(t *testing.T) {
+// A structured flag must suppress the human view entirely, or --json output
+// would be polluted with prose.
+func TestOutputPicksTheStructuredFormat(t *testing.T) {
 	titles := []client.Title{{ID: 1, Title: "A"}, {ID: 2, Title: "B"}}
 	for name, tc := range map[string]struct {
 		cf   *common
@@ -57,30 +59,33 @@ func TestEmitStructuredPicksFormat(t *testing.T) {
 		"jsonl": {&common{jsonl: true}, "\n"},
 		"toon":  {&common{toon: true}, "id"},
 	} {
+		humanRan := false
 		out := captureStdout(t, func() {
-			done, err := emitStructured(tc.cf, titles)
-			if err != nil || !done {
-				t.Fatalf("%s: done=%v err=%v", name, done, err)
+			if err := output(tc.cf, titles, func() { humanRan = true }); err != nil {
+				t.Fatalf("%s: %v", name, err)
 			}
 		})
+		if humanRan {
+			t.Errorf("%s: the human view ran despite a structured flag", name)
+		}
 		if !strings.Contains(out, tc.want) {
 			t.Errorf("%s output %q does not contain %q", name, out, tc.want)
 		}
 	}
 }
 
-func TestEmitStructuredFallsThroughWithoutFlags(t *testing.T) {
+func TestOutputFallsBackToTheHumanView(t *testing.T) {
+	humanRan := false
 	out := captureStdout(t, func() {
-		done, err := emitStructured(&common{}, []client.Title{{ID: 1}})
-		if err != nil {
-			t.Fatalf("emitStructured: %v", err)
-		}
-		if done {
-			t.Error("want done=false so the caller prints the human view")
+		if err := output(&common{}, []client.Title{{ID: 1}}, func() { humanRan = true }); err != nil {
+			t.Fatalf("output: %v", err)
 		}
 	})
+	if !humanRan {
+		t.Error("want the human view to run when no structured flag is set")
+	}
 	if out != "" {
-		t.Errorf("wrote %q to stdout, want nothing", out)
+		t.Errorf("output itself wrote %q to stdout, want nothing", out)
 	}
 }
 
@@ -146,4 +151,42 @@ func captureStdout(t *testing.T, fn func()) string {
 		t.Fatalf("read captured stdout: %v", err)
 	}
 	return buf.String()
+}
+
+func TestOperand(t *testing.T) {
+	fs := flag.NewFlagSet("search", flag.ContinueOnError)
+	parseFlags(fs, []string{"breaking", "bad"})
+	got, err := operand(fs, "netflix search <query>")
+	if err != nil {
+		t.Fatalf("operand: %v", err)
+	}
+	if got != "breaking bad" {
+		t.Errorf("operand = %q, want the arguments joined", got)
+	}
+
+	empty := flag.NewFlagSet("search", flag.ContinueOnError)
+	parseFlags(empty, nil)
+	if _, err := operand(empty, "netflix search <query>"); err == nil {
+		t.Fatal("want a usage error when the operand is missing")
+	} else if !strings.Contains(err.Error(), "usage: netflix search <query>") {
+		t.Errorf("error = %q, want it to spell the usage", err)
+	}
+}
+
+func TestTitleOperand(t *testing.T) {
+	fs := flag.NewFlagSet("title", flag.ContinueOnError)
+	parseFlags(fs, []string{"https://www.netflix.com/title/80100172"})
+	id, err := titleOperand(fs, "netflix title <id|url>")
+	if err != nil {
+		t.Fatalf("titleOperand: %v", err)
+	}
+	if id != 80100172 {
+		t.Errorf("id = %d, want the id parsed out of the URL", id)
+	}
+
+	bad := flag.NewFlagSet("title", flag.ContinueOnError)
+	parseFlags(bad, []string{"not-an-id"})
+	if _, err := titleOperand(bad, "netflix title <id|url>"); err == nil {
+		t.Fatal("want an error for an operand that is not a title id")
+	}
 }

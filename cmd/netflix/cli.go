@@ -187,16 +187,39 @@ func emitTOON(v any) error {
 	return err
 }
 
-// emitStructured emits v as --toon / --jsonl / --json and reports whether it did,
-// so callers fall through to the human view only when no such flag is set.
-func emitStructured(cf *common, v any) (emitted bool, err error) {
+// output renders a command's result: the structured format the flags asked for,
+// or the human view when they asked for none. Every command ends in this call,
+// so the precedence between --toon, --jsonl and --json is decided in one place.
+func output(cf *common, v any, human func()) error {
 	switch {
 	case cf.toon:
-		return true, emitTOON(v)
+		return emitTOON(v)
 	case cf.jsonl:
-		return true, emitJSONL(v)
+		return emitJSONL(v)
 	case cf.jsonOut:
-		return true, emitJSON(v)
+		return emitJSON(v)
 	}
-	return false, nil
+	human()
+	return nil
+}
+
+// operand returns the command's positional argument, joined and trimmed, or a
+// usage error naming the right spelling. Operands are validated before the
+// client is built, so a typo costs no request.
+func operand(fs *flag.FlagSet, usage string) (string, error) {
+	value := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	if value == "" {
+		return "", fmt.Errorf("usage: %s", usage)
+	}
+	return value, nil
+}
+
+// titleOperand returns the positional argument parsed as a Netflix title id; it
+// accepts a bare id or any netflix.com URL carrying one.
+func titleOperand(fs *flag.FlagSet, usage string) (int, error) {
+	raw, err := operand(fs, usage)
+	if err != nil {
+		return 0, err
+	}
+	return client.ParseTitleID(raw)
 }

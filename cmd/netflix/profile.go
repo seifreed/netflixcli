@@ -21,28 +21,30 @@ func cmdProfiles(args []string) error {
 	if err != nil {
 		return err
 	}
-	if done, err := emitStructured(cf, profiles); done {
-		return err
+	return output(cf, profiles, func() {
+		for _, p := range profiles {
+			fmt.Println(profileLine(p))
+		}
+	})
+}
+
+func profileLine(p client.Profile) string {
+	marker := " "
+	if p.Current {
+		marker = "*"
 	}
-	for _, p := range profiles {
-		marker := " "
-		if p.Current {
-			marker = "*"
-		}
-		tags := []string{}
-		if p.IsKids {
-			tags = append(tags, "kids")
-		}
-		if p.IsPinLocked {
-			tags = append(tags, "pin-locked")
-		}
-		line := fmt.Sprintf("%s %-20s %s", marker, p.Name, p.GUID)
-		if len(tags) > 0 {
-			line += "  (" + strings.Join(tags, ", ") + ")"
-		}
-		fmt.Println(line)
+	line := fmt.Sprintf("%s %-20s %s", marker, p.Name, p.GUID)
+	var tags []string
+	if p.IsKids {
+		tags = append(tags, "kids")
 	}
-	return nil
+	if p.IsPinLocked {
+		tags = append(tags, "pin-locked")
+	}
+	if len(tags) > 0 {
+		line += "  (" + strings.Join(tags, ", ") + ")"
+	}
+	return line
 }
 
 // cmdProfileUse re-points the stored session at another profile, the way the
@@ -50,9 +52,9 @@ func cmdProfiles(args []string) error {
 func cmdProfileUse(args []string) error {
 	fs, cf := newCommonFlags("profile use")
 	parseFlags(fs, args)
-	want := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if want == "" {
-		return fmt.Errorf("usage: netflix profile use <name|guid>")
+	want, err := operand(fs, "netflix profile use <name|guid>")
+	if err != nil {
+		return err
 	}
 	cl, err := newClient(cf)
 	if err != nil {
@@ -65,11 +67,9 @@ func cmdProfileUse(args []string) error {
 	if err := session.SaveSession(session.Session{Cookie: updated}); err != nil {
 		return err
 	}
-	if done, err := emitStructured(cf, profile); done {
-		return err
-	}
-	fmt.Fprintf(os.Stderr, "session now acts as %q\n", profile.Name)
-	return nil
+	return output(cf, profile, func() {
+		fmt.Fprintf(os.Stderr, "session now acts as %q\n", profile.Name)
+	})
 }
 
 // cmdProfile dispatches the profile subcommands.
@@ -104,17 +104,15 @@ func cmdHistory(args []string) error {
 	if *asCSV {
 		return emitViewingsCSV(viewings)
 	}
-	if done, err := emitStructured(cf, viewings); done {
-		return err
-	}
-	if len(viewings) == 0 {
-		fmt.Println("(no viewing activity for this profile)")
-		return nil
-	}
-	for _, v := range viewings {
-		fmt.Printf("%s  %s\n", v.Date, v.Title)
-	}
-	return nil
+	return output(cf, viewings, func() {
+		if len(viewings) == 0 {
+			fmt.Println("(no viewing activity for this profile)")
+			return
+		}
+		for _, v := range viewings {
+			fmt.Printf("%s  %s\n", v.Date, v.Title)
+		}
+	})
 }
 
 func emitViewingsCSV(viewings []client.Viewing) error {

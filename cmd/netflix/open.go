@@ -5,8 +5,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-
-	"github.com/seifreed/netflixcli/internal/client"
 )
 
 // cmdOpen opens a title in the system browser, where the signed-in session can
@@ -15,11 +13,7 @@ func cmdOpen(args []string) error {
 	fs, cf := newOutputFlags("open")
 	watch := fs.Bool("watch", false, "open the player instead of the title page")
 	parseFlags(fs, args)
-	raw := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if raw == "" {
-		return fmt.Errorf("usage: netflix open <id|url>")
-	}
-	id, err := client.ParseTitleID(raw)
+	id, err := titleOperand(fs, "netflix open <id|url>")
 	if err != nil {
 		return err
 	}
@@ -35,11 +29,9 @@ func cmdOpen(args []string) error {
 	if err := launchBrowser(target); err != nil {
 		return fmt.Errorf("open title: %w", err)
 	}
-	if done, err := emitStructured(cf, map[string]any{"opened": true, "url": target}); done {
-		return err
-	}
-	fmt.Println(target)
-	return nil
+	return output(cf, map[string]any{"opened": true, "url": target}, func() {
+		fmt.Println(target)
+	})
 }
 
 func launchBrowser(target string) error {

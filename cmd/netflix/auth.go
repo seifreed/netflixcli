@@ -34,17 +34,10 @@ func cmdLogin(args []string) error {
 		return err
 	}
 	user, probeErr := cl.Whoami()
-	if done, emitErr := emitStructured(cf, loginResult(s, user, probeErr)); done {
-		if emitErr != nil {
-			return emitErr
-		}
-		return probeErr
+	if err := output(cf, loginResult(s, user, probeErr), func() { printUser(user) }); err != nil {
+		return err
 	}
-	if probeErr != nil {
-		return probeErr
-	}
-	printUser(user)
-	return nil
+	return probeErr
 }
 
 func loginResult(s session.Session, user client.UserInfo, probeErr error) map[string]any {
@@ -115,12 +108,11 @@ func cmdSetCookie(args []string) error {
 }
 
 func emitSavedSession(cf *common, s session.Session) error {
-	_, err := emitStructured(cf, map[string]any{
+	return output(cf, map[string]any{
 		"saved":        true,
 		"hasCookie":    s.Cookie != "",
 		"hasNetflixId": cookie.LooksAuthenticated(s.Cookie),
-	})
-	return err
+	}, func() {})
 }
 
 // cmdWhoami reports the account the current session belongs to.
@@ -131,27 +123,25 @@ func cmdWhoami(args []string) error {
 	if err != nil {
 		return err
 	}
-	user, err := cl.Whoami()
+	user, whoamiErr := cl.Whoami()
 	profile, _ := cl.CurrentProfile() // free once Whoami has bootstrapped
-	if done, derr := emitStructured(cf, map[string]any{
+	report := map[string]any{
 		"hasCookie": cl.Cookie != "",
-		"accepted":  err == nil,
+		"accepted":  whoamiErr == nil,
 		"user":      user,
 		"profile":   profile,
-	}); done {
-		if derr != nil {
-			return derr
-		}
+	}
+	if err := output(cf, report, func() { printSession(user, profile) }); err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
+	return whoamiErr
+}
+
+func printSession(user client.UserInfo, profile client.Profile) {
 	printUser(user)
 	if profile.Name != "" {
 		fmt.Printf("  acting as: %s (%s)\n", profile.Name, profile.GUID)
 	}
-	return nil
 }
 
 func printUser(u client.UserInfo) {

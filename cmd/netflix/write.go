@@ -24,11 +24,7 @@ func cmdMyListRemove(args []string) error {
 func myListChange(args []string, verb string, change func(*client.Client, int) (client.EntityState, error)) error {
 	fs, cf := newCommonFlags("mylist " + verb)
 	parseFlags(fs, args)
-	raw := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if raw == "" {
-		return fmt.Errorf("usage: netflix mylist %s <id|url>", verb)
-	}
-	id, err := client.ParseTitleID(raw)
+	id, err := titleOperand(fs, fmt.Sprintf("netflix mylist %s <id|url>", verb))
 	if err != nil {
 		return err
 	}
@@ -40,15 +36,13 @@ func myListChange(args []string, verb string, change func(*client.Client, int) (
 	if err != nil {
 		return err
 	}
-	if done, err := emitStructured(cf, state); done {
-		return err
-	}
-	if state.InMyList {
-		fmt.Printf("%s is in My List\n", state.Title)
-	} else {
+	return output(cf, state, func() {
+		if state.InMyList {
+			fmt.Printf("%s is in My List\n", state.Title)
+			return
+		}
 		fmt.Printf("%s is no longer in My List\n", state.Title)
-	}
-	return nil
+	})
 }
 
 // cmdRate sets this profile's thumb rating for a title.
@@ -71,22 +65,16 @@ func cmdRate(args []string) error {
 	if err != nil {
 		return err
 	}
-	if done, err := emitStructured(cf, state); done {
-		return err
-	}
-	fmt.Printf("%s: %s\n", state.Title, strings.ToLower(strings.ReplaceAll(state.ThumbRating, "_", " ")))
-	return nil
+	return output(cf, state, func() {
+		fmt.Printf("%s: %s\n", state.Title, strings.ToLower(strings.ReplaceAll(state.ThumbRating, "_", " ")))
+	})
 }
 
 // cmdContinueRemove drops a title from the profile's Continue Watching row.
 func cmdContinueRemove(args []string) error {
 	fs, cf := newCommonFlags("continue remove")
 	parseFlags(fs, args)
-	raw := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if raw == "" {
-		return fmt.Errorf("usage: netflix continue remove <id|url>")
-	}
-	id, err := client.ParseTitleID(raw)
+	id, err := titleOperand(fs, "netflix continue remove <id|url>")
 	if err != nil {
 		return err
 	}
@@ -97,11 +85,9 @@ func cmdContinueRemove(args []string) error {
 	if err := cl.RemoveFromContinueWatching(id); err != nil {
 		return err
 	}
-	if done, err := emitStructured(cf, map[string]any{"id": id, "removed": true}); done {
-		return err
-	}
-	fmt.Printf("title %d is no longer in Continue Watching\n", id)
-	return nil
+	return output(cf, map[string]any{"id": id, "removed": true}, func() {
+		fmt.Printf("title %d is no longer in Continue Watching\n", id)
+	})
 }
 
 // cmdRemind manages release reminders for titles that are not out yet.
@@ -121,11 +107,7 @@ func cmdRemind(args []string) error {
 	}
 	fs, cf := newCommonFlags("remind " + verb)
 	parseFlags(fs, args)
-	raw := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if raw == "" {
-		return fmt.Errorf("usage: netflix remind %s <id|url>", verb)
-	}
-	id, err := client.ParseTitleID(raw)
+	id, err := titleOperand(fs, fmt.Sprintf("netflix remind %s <id|url>", verb))
 	if err != nil {
 		return err
 	}
@@ -137,16 +119,14 @@ func cmdRemind(args []string) error {
 	if err != nil {
 		return err
 	}
-	if done, err := emitStructured(cf, state); done {
-		return err
-	}
-	// The reminder mutations answer without a title, so the id is what there is
-	// to name, and the two flags are reported exactly as they came back rather
-	// than narrated: asking to be reminded about an already-available title also
-	// files it in My List, and the response does not distinguish that from a
-	// title that was in My List already.
-	fmt.Printf("title %d — reminder: %s · My List: %s\n", state.ID, yesNo(state.Reminder), yesNo(state.InMyList))
-	return nil
+	return output(cf, state, func() {
+		// The reminder mutations answer without a title, so the id is what there is
+		// to name, and the two flags are reported exactly as they came back rather
+		// than narrated: asking to be reminded about an already-available title also
+		// files it in My List, and the response does not distinguish that from a
+		// title that was in My List already.
+		fmt.Printf("title %d — reminder: %s · My List: %s\n", state.ID, yesNo(state.Reminder), yesNo(state.InMyList))
+	})
 }
 
 func yesNo(b bool) string {

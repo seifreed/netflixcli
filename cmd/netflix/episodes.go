@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/seifreed/netflixcli/internal/client"
 )
@@ -11,7 +10,7 @@ import (
 func cmdSeasons(args []string) error {
 	fs, cf := newCommonFlags("seasons")
 	parseFlags(fs, args)
-	id, err := showArg(fs.Args(), "seasons")
+	id, err := titleOperand(fs, "netflix seasons <show-id|url>")
 	if err != nil {
 		return err
 	}
@@ -23,13 +22,11 @@ func cmdSeasons(args []string) error {
 	if err != nil {
 		return err
 	}
-	if done, err := emitStructured(cf, seasons); done {
-		return err
-	}
-	for _, s := range seasons {
-		fmt.Printf("%2d. %-28s %d episodes  [%d]\n", s.Number, s.Title, s.Episodes, s.ID)
-	}
-	return nil
+	return output(cf, seasons, func() {
+		for _, s := range seasons {
+			fmt.Printf("%2d. %-28s %d episodes  [%d]\n", s.Number, s.Title, s.Episodes, s.ID)
+		}
+	})
 }
 
 // cmdEpisodes lists one season's episodes — the first season unless --season
@@ -40,7 +37,7 @@ func cmdEpisodes(args []string) error {
 	all := fs.Bool("all", false, "list every season")
 	limit := fs.Int("limit", 0, "max episodes per season")
 	parseFlags(fs, args)
-	id, err := showArg(fs.Args(), "episodes")
+	id, err := titleOperand(fs, "netflix episodes <show-id|url>")
 	if err != nil {
 		return err
 	}
@@ -75,32 +72,26 @@ func cmdEpisodes(args []string) error {
 		}
 		out = append(out, seasonEpisodes{Season: s, Episodes: episodes})
 	}
-	if done, err := emitStructured(cf, out); done {
-		return err
-	}
-	for _, block := range out {
-		fmt.Printf("\n%s\n", block.Season.Title)
-		for _, e := range block.Episodes {
-			line := fmt.Sprintf("%3d. %s", e.Number, e.Title)
-			if r := e.Runtime(); r != "" {
-				line += "  (" + r + ")"
-			}
-			if e.ProgressSec > 0 {
-				line += "  ▸ resumes"
-			}
-			fmt.Println(line)
-			if e.Synopsis != "" {
-				fmt.Printf("     %s\n", e.Synopsis)
+	return output(cf, out, func() {
+		for _, block := range out {
+			fmt.Printf("\n%s\n", block.Season.Title)
+			for _, e := range block.Episodes {
+				printEpisode(e)
 			}
 		}
-	}
-	return nil
+	})
 }
 
-func showArg(args []string, command string) (int, error) {
-	raw := strings.TrimSpace(strings.Join(args, " "))
-	if raw == "" {
-		return 0, fmt.Errorf("usage: netflix %s <show-id|url>", command)
+func printEpisode(e client.Episode) {
+	line := fmt.Sprintf("%3d. %s", e.Number, e.Title)
+	if runtime := e.Runtime(); runtime != "" {
+		line += "  (" + runtime + ")"
 	}
-	return client.ParseTitleID(raw)
+	if e.ProgressSec > 0 {
+		line += "  ▸ resumes"
+	}
+	fmt.Println(line)
+	if e.Synopsis != "" {
+		fmt.Printf("     %s\n", e.Synopsis)
+	}
 }
