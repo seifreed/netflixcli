@@ -11,6 +11,7 @@ func cmdBrowse(args []string) error {
 	fs, cf := newCommonFlags("browse")
 	surface := fs.String("surface", "", "home, my-netflix, or a genre id")
 	limit := fs.Int("limit", 0, "max titles per row (0 = whatever the page carries)")
+	all := fs.Bool("all", false, "every row, not just the eight the page renders")
 	parseFlags(fs, args)
 	if positional := optionalOperand(fs); positional != "" {
 		*surface = positional
@@ -19,7 +20,11 @@ func cmdBrowse(args []string) error {
 	if err != nil {
 		return err
 	}
-	rows, err := cl.Library.Browse(*surface)
+	fetch := cl.Library.Browse
+	if *all {
+		fetch = cl.Library.AllRows
+	}
+	rows, err := fetch(*surface)
 	if err != nil {
 		return err
 	}
@@ -86,4 +91,32 @@ func capTitles(titles []client.Title, limit int) []client.Title {
 		return titles[:limit]
 	}
 	return titles
+}
+
+// cmdTop prints Netflix's top 10 rows. They are not in the page: they sit past
+// the twentieth row, so this pages through the rows to reach them.
+func cmdTop(args []string) error {
+	fs, cf := newCommonFlags("top")
+	limit := fs.Int("limit", 0, "max titles per list")
+	parseFlags(fs, args)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
+	rows, err := cl.Library.Top()
+	if err != nil {
+		return err
+	}
+	rows = capRows(rows, *limit)
+	return output(cf, rows, func() { printRanked(rows) })
+}
+
+// printRanked numbers the titles, because in these rows the order is the point.
+func printRanked(rows []client.Row) {
+	for _, row := range rows {
+		fmt.Printf("\n%s\n", row.Name)
+		for i, t := range row.Titles {
+			fmt.Printf("  %2d. %s  [%d]\n", i+1, t.Title, t.ID)
+		}
+	}
 }

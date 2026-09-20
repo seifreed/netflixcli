@@ -189,10 +189,24 @@ func (c apolloCache) rows() []Row {
 		rows = append(rows, Row{
 			Name:   fieldString(section, "displayString"),
 			Feed:   feed,
+			Ranked: c.sectionRanked(section),
 			Titles: titles,
 		})
 	}
 	return rows
+}
+
+// sectionRanked reports whether the cached section is a ranking, by the same
+// card treatment the fetched sections carry.
+func (c apolloCache) sectionRanked(section map[string]any) bool {
+	edges, _ := field(c.deref(field(section, "entities")), "edges").([]any)
+	for _, edge := range edges {
+		card := c.deref(field(c.deref(edge), "node"))
+		if fieldString(card, "__typename") == rankedTreatment {
+			return true
+		}
+	}
+	return false
 }
 
 func (c apolloCache) sectionTitles(section map[string]any) []Title {

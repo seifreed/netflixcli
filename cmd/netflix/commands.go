@@ -53,10 +53,17 @@ func commands() []command {
 			run:     cmdGenres,
 		},
 		{
+			name: "top", group: groupRead,
+			summary: "Netflix's top 10 series and films in this country",
+			detail:  []string{"--limit N   cap titles per list"},
+			run:     cmdTop,
+		},
+		{
 			name: "browse", group: groupRead, args: "[surface]",
 			summary: "rows of a browse page (home by default)",
 			detail: []string{
 				"surface: home | my-netflix | <genre-id> (see genres)",
+				"--all       every row, not just the eight in the page",
 				"--limit N   cap titles per row",
 			},
 			run: cmdBrowse,

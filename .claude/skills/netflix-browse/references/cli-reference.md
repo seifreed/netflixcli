@@ -27,8 +27,9 @@ already the right one.
 | `netflix title ID\|URL [--similar]` | Synopsis, cast, directors, writers, genres, mood tags, runtime, certification, playback badges, watch status, thumb rating, My List membership. `--similar` resolves the related ids to names in one batched call. |
 | `netflix seasons SHOW-ID\|URL` | A show's seasons: number, title, episode count and the season id the next command needs. Errors clearly for a movie. |
 | `netflix episodes SHOW-ID\|URL [--season N] [--all] [--limit N]` | Episodes with number, title, synopsis, runtime, and a resume marker where the profile left off. Defaults to the first season. |
+| `netflix top [--limit N]` | Netflix's top 10 series and films for this country, numbered. They are not in the page — the command pages through the rows to reach them, so it costs about four requests. |
 | `netflix genres [FILTER]` | The genres this region offers with the ids `browse` takes. Netflix never shows these ids in the UI, so this is the only way to find one. |
-| `netflix browse [SURFACE] [--limit N]` | Rows of a browse page. Surfaces: `home` (default), `my-netflix`, or a genre id such as `8711`. `--limit` caps titles per row. A personal row that exists but is empty is reported as empty, not omitted. |
+| `netflix browse [SURFACE] [--limit N]` | Rows of a browse page. Surfaces: `home` (default), `my-netflix`, or a genre id such as `8711`. `--limit` caps titles per row. `--all` fetches every row (about 47 on the home page) instead of the eight the page renders, at roughly four requests. A personal row that exists but is empty is reported as empty, not omitted. |
 | `netflix mylist [--limit N]` | Titles in this profile's My List. |
 | `netflix continue [--limit N]` | Titles this profile is part-way through. |
 | `netflix liked [--limit N]` | Titles this profile gave a thumbs up. |

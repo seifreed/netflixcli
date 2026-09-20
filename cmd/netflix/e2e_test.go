@@ -29,7 +29,7 @@ const netflixPage = `<!DOCTYPE html><html><body><script>` +
 	`"Account:1":{"profiles":[{"__ref":"Profile:A"},{"__ref":"Profile:B"}]},` +
 	`"Profile:A":{"guid":"AAA","name":"Ada","isKids":false,"isPinLocked":false},` +
 	`"Profile:B":{"guid":"BBB","name":"Kid","isKids":true,"isPinLocked":false},` +
-	`"Page:1":{"sections({\\"first\\":8})":{"edges":[{"node":{"__ref":"Section:1"}},{"node":{"__ref":"Section:2"}}]}},` +
+	`"Page:1":{"id":"PS_stub_L1_N1","sections({\\"first\\":8})":{"edges":[{"node":{"__ref":"Section:1"}},{"node":{"__ref":"Section:2"}}]}},` +
 	`"Section:1":{"__typename":"PinotCarouselSection","displayString":"Mi lista",` +
 	`"eventListeners":[{"actions":[{"__ref":"PinotPageUpdateAction:CghwbGF5bGlzdBICCDc="}]}],` +
 	`"entities":{"edges":[{"node":{"__ref":"Card:1"}}]}},` +
@@ -225,7 +225,8 @@ const stubQueryIDs = `{
 	"RemoveFromPlaylist":"77777777-7777-7777-7777-777777777777",
 	"SetEntityThumbRating":"88888888-8888-8888-8888-888888888888",
 	"RemoveFromContinueWatching":"99999999-9999-9999-9999-999999999999",
-	"AddReminder":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	"AddReminder":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+	"FetchMoreSections":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 }`
 
 func TestSearchRendersResults(t *testing.T) {
@@ -518,4 +519,61 @@ func readSession(t *testing.T) string {
 		t.Fatalf("read session: %v", err)
 	}
 	return string(raw)
+}
+
+// The top-10 rows are not in the page: they arrive over the section cursor, and
+// the command numbers them because the order is the answer.
+func TestTopNumbersTheRankedRows(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"FetchMoreSections": `{"data":{"page":{"sections":{
+			"pageInfo":{"endCursor":"","hasNextPage":false},
+			"edges":[
+				{"node":{"displayString":"Series dramáticas","entities":{"edges":[
+					{"node":{"__typename":"PinotStandardBoxshotEntityTreatment","displayString":"Dark",
+						"unifiedEntity":{"__typename":"Show","videoId":80100172}}}]}}},
+				{"node":{"displayString":"Las 10 series más populares","entities":{"edges":[
+					{"node":{"__typename":"PinotRankedBoxshotEntityTreatment","displayString":"Monstruo",
+						"unifiedEntity":{"__typename":"Show","videoId":82068293}}},
+					{"node":{"__typename":"PinotRankedBoxshotEntityTreatment","displayString":"Te conozco",
+						"unifiedEntity":{"__typename":"Show","videoId":81726799}}}]}}}]}}}}`,
+	})
+	code, out := runCommand(t, "top")
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	if !strings.Contains(out, " 1. Monstruo") || !strings.Contains(out, " 2. Te conozco") {
+		t.Errorf("output %q does not number the ranking", out)
+	}
+	if strings.Contains(out, "Dark") {
+		t.Errorf("output %q includes an unranked row", out)
+	}
+}
+
+func TestTopReportsWhenNetflixRendersNoRanking(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"FetchMoreSections": `{"data":{"page":{"sections":{"pageInfo":{"hasNextPage":false},"edges":[]}}}}`,
+	})
+	code, _ := runCommand(t, "top")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d when no ranked row came back", code, exitError)
+	}
+}
+
+func TestBrowseAllPagesPastThePage(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"FetchMoreSections": `{"data":{"page":{"sections":{
+			"pageInfo":{"endCursor":"","hasNextPage":false},
+			"edges":[{"node":{"displayString":"Fila profunda","entities":{"edges":[
+				{"node":{"displayString":"Fariña","unifiedEntity":{"__typename":"Show","videoId":80215500}}}]}}}]}}}}`,
+	})
+	code, out := runCommand(t, "browse", "--all")
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	if !strings.Contains(out, "Fila profunda") {
+		t.Errorf("output %q does not carry the fetched row", out)
+	}
 }

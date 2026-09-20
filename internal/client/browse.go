@@ -26,10 +26,12 @@ const (
 )
 
 // Row is one titled carousel of a browse page. Feed names the personal list it
-// is, when it is one (see the Feed constants); editorial rows have none.
+// is, when it is one (see the Feed constants); editorial rows have none. Ranked
+// marks a row whose order is a ranking — Netflix's top 10 lists.
 type Row struct {
 	Name   string  `json:"name"`
 	Feed   string  `json:"feed,omitempty"`
+	Ranked bool    `json:"ranked,omitempty"`
 	Titles []Title `json:"titles"`
 }
 
@@ -48,9 +50,18 @@ func surfacePath(surface string) (string, error) {
 	return "", fmt.Errorf("unknown browse surface %q (want home, my-netflix or a genre id — run `netflix genres` for the ids)", surface)
 }
 
-// Browse returns the rows of a browse surface, read from the page Netflix
-// renders for it.
+// Browse returns the rows a browse surface renders — the eight Netflix puts in
+// the page. AllRows fetches the rest.
 func (s *Library) Browse(surface string) ([]Row, error) {
+	cache, err := s.surfaceCache(surface)
+	if err != nil {
+		return nil, err
+	}
+	return cache.rows(), nil
+}
+
+// surfaceCache loads a surface's page and returns the row cache embedded in it.
+func (s *Library) surfaceCache(surface string) (apolloCache, error) {
 	path, err := surfacePath(surface)
 	if err != nil {
 		return nil, err
@@ -62,11 +73,7 @@ func (s *Library) Browse(surface string) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	cache, err := parseApolloCache(html)
-	if err != nil {
-		return nil, err
-	}
-	return cache.rows(), nil
+	return parseApolloCache(html)
 }
 
 // Feed returns one personal row of the My Netflix page — My List, Continue

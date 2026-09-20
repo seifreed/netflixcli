@@ -10,8 +10,14 @@ type pinotPage struct {
 			Edges []struct {
 				Node pinotSection `json:"node"`
 			} `json:"edges"`
+			PageInfo pinotPageInfo `json:"pageInfo"`
 		} `json:"sections"`
 	} `json:"page"`
+}
+
+type pinotPageInfo struct {
+	EndCursor   string `json:"endCursor"`
+	HasNextPage bool   `json:"hasNextPage"`
 }
 
 type pinotSection struct {
@@ -22,11 +28,8 @@ type pinotSection struct {
 		Edges []struct {
 			Node pinotEntity `json:"node"`
 		} `json:"edges"`
-		TotalCount int `json:"totalCount"`
-		PageInfo   struct {
-			EndCursor   string `json:"endCursor"`
-			HasNextPage bool   `json:"hasNextPage"`
-		} `json:"pageInfo"`
+		TotalCount int           `json:"totalCount"`
+		PageInfo   pinotPageInfo `json:"pageInfo"`
 	} `json:"entities"`
 }
 
@@ -62,6 +65,20 @@ func (e pinotEntity) toTitle() (Title, bool) {
 	}, true
 }
 
+// rankedTreatment is the card shape Netflix uses for a top-10 row. The titles
+// of those rows are localised, so this is what identifies a ranking.
+const rankedTreatment = "PinotRankedBoxshotEntityTreatment"
+
+// ranked reports whether the section's order is a ranking.
+func (s pinotSection) ranked() bool {
+	for _, edge := range s.Entities.Edges {
+		if edge.Node.TypeName == rankedTreatment {
+			return true
+		}
+	}
+	return false
+}
+
 // titles flattens one section, dropping cards that carry no video id (headers,
 // autocomplete suggestions, games without a video entity).
 func (s pinotSection) titles() []Title {
@@ -72,6 +89,25 @@ func (s pinotSection) titles() []Title {
 		}
 	}
 	return out
+}
+
+// rows returns every section of a fetched page, in page order. Browse surfaces
+// read their rows from the page cache instead; this walks the ones that arrive
+// over GraphQL, past the eighth.
+func (p pinotPage) rows() []Row {
+	rows := make([]Row, 0, len(p.Page.Sections.Edges))
+	for _, edge := range p.Page.Sections.Edges {
+		titles := edge.Node.titles()
+		if len(titles) == 0 {
+			continue
+		}
+		rows = append(rows, Row{
+			Name:   edge.Node.DisplayString,
+			Ranked: edge.Node.ranked(),
+			Titles: titles,
+		})
+	}
+	return rows
 }
 
 // gallerySection returns the page's gallery of results. Search answers with one

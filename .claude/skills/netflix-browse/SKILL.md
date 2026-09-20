@@ -47,6 +47,7 @@ where the user is signed in — never to ask for credentials.
 | detail: plot, cast, year, runtime, rating | `netflix title <id\|url>` |
 | "something like X" | `netflix title <id> --similar` |
 | "how many seasons / what are the episodes?" | `netflix seasons <id>` then `netflix episodes <id> --season N` |
+| "qué es lo más visto" / trending / top 10 | `netflix top` |
 | what genres exist / "algo de terror" | `netflix genres [filter]`, then `netflix browse <genre-id>` |
 | what is on the home page / a genre | `netflix browse [home\|<genre-id>]` |
 | "what's on my list?" | `netflix mylist` |
@@ -61,6 +62,10 @@ Ids come from `search`; every command that takes an id also takes a `netflix.com
 
 ## What this CLI cannot do
 
+Netflix's own ranking is available through `netflix top`; every other row the
+CLI shows is personalised for this profile, so never present one as a
+popularity ranking.
+
 Do not try, and say so plainly if asked: **play or download video** (Netflix
 streams are DRM-protected — `open --watch` hands the title to the browser, which
 is the answer), fetch **subtitles**, change the **plan or payment**, create or
@@ -73,6 +78,7 @@ Worth knowing before chaining several:
 | Command | Requests |
 |---|---|
 | `browse`, `mylist`, `continue`, `liked`, `reminders` | 1 (one page fetch; ~13 titles per row) |
+| `top`, `browse --all` | ~4 (the rows past the eighth are paged in) |
 | `search --limit N` | 1 per 48 titles |
 | `title`, `seasons`, `genres`, the writes | 1 |
 | `episodes` | 2 (seasons, then the episodes) |
