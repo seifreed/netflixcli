@@ -10,12 +10,14 @@ type pinotPage struct {
 			Edges []struct {
 				Node pinotSection `json:"node"`
 			} `json:"edges"`
-			PageInfo pinotPageInfo `json:"pageInfo"`
+			PageInfo connectionPageInfo `json:"pageInfo"`
 		} `json:"sections"`
 	} `json:"page"`
 }
 
-type pinotPageInfo struct {
+// connectionPageInfo is the cursor every paged connection answers with —
+// sections, search galleries and a season's episodes alike.
+type connectionPageInfo struct {
 	EndCursor   string `json:"endCursor"`
 	HasNextPage bool   `json:"hasNextPage"`
 }
@@ -36,7 +38,7 @@ type pinotSection struct {
 		Edges []struct {
 			Node pinotEntity `json:"node"`
 		} `json:"edges"`
-		PageInfo pinotPageInfo `json:"pageInfo"`
+		PageInfo connectionPageInfo `json:"pageInfo"`
 	} `json:"entities"`
 }
 

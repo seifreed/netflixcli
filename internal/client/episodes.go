@@ -6,8 +6,14 @@ import "fmt"
 // comes close.
 const maxSeasonsFetched = 50
 
-// DefaultEpisodePageSize is how many episodes a season request asks for.
+// DefaultEpisodePageSize is how many episodes one request asks for. A season
+// with more than that is paged, the way the web app pages it when the episode
+// list is scrolled.
 const DefaultEpisodePageSize = 50
+
+// maxEpisodePages bounds the paging, so a cursor that stops advancing cannot
+// loop for ever. At fifty an episode this reaches a thousand-episode season.
+const maxEpisodePages = 20
 
 // Season is one season of a show.
 type Season struct {
@@ -62,13 +68,16 @@ type seasonNode struct {
 	} `json:"contentAdvisory"`
 }
 
+type episodeConnection struct {
+	Edges []struct {
+		Node episodeNode `json:"node"`
+	} `json:"edges"`
+	PageInfo connectionPageInfo `json:"pageInfo"`
+}
+
 type episodesResponse struct {
 	Videos []struct {
-		Episodes struct {
-			Edges []struct {
-				Node episodeNode `json:"node"`
-			} `json:"edges"`
-		} `json:"episodes"`
+		Episodes episodeConnection `json:"episodes"`
 	} `json:"videos"`
 }
 
@@ -133,30 +142,56 @@ func (s *Catalog) Seasons(showID int) ([]Season, error) {
 }
 
 // Episodes lists one season's episodes, oldest first. limit bounds how many are
-// requested; 0 asks for a full season.
+// returned; 0 asks for the whole season, however long it is.
+//
+// One request answers with at most DefaultEpisodePageSize, so a longer season
+// is paged. It used to be truncated there instead, silently: a season Netflix
+// says has 63 episodes came back with 50, and an explicit --limit above the
+// page size was clamped to it.
 func (s *Catalog) Episodes(seasonID, limit int) ([]Episode, error) {
-	if limit <= 0 || limit > DefaultEpisodePageSize {
-		limit = DefaultEpisodePageSize
+	var episodes []Episode
+	cursor := ""
+	for page := 0; page < maxEpisodePages; page++ {
+		count := DefaultEpisodePageSize
+		if remaining := limit - len(episodes); limit > 0 && remaining < count {
+			count = remaining
+		}
+		conn, err := s.episodePage(seasonID, cursor, count)
+		if err != nil {
+			return nil, err
+		}
+		for _, edge := range conn.Edges {
+			episodes = append(episodes, edge.Node.toEpisode())
+		}
+		if limit > 0 && len(episodes) >= limit {
+			return episodes[:limit], nil
+		}
+		next := conn.PageInfo.EndCursor
+		if !conn.PageInfo.HasNextPage || next == "" || next == cursor || len(conn.Edges) == 0 {
+			break
+		}
+		cursor = next
 	}
+	return episodes, nil
+}
+
+// episodePage fetches one slice of a season, the way the episode list does when
+// it is scrolled to the end.
+func (s *Catalog) episodePage(seasonID int, cursor string, count int) (episodeConnection, error) {
 	var resp episodesResponse
 	if err := s.client.GraphQL("PreviewModalEpisodeSelectorSeasonEpisodes", map[string]any{
 		"seasonId":          seasonID,
-		"count":             limit,
-		"cursor":            nil,
+		"count":             count,
+		"cursor":            optionalString(cursor),
 		"opaqueImageFormat": "WEBP",
 		"artworkContext":    map[string]any{},
 	}, &resp); err != nil {
-		return nil, err
+		return episodeConnection{}, err
 	}
 	if len(resp.Videos) == 0 {
-		return nil, fmt.Errorf("netflix has no season %d in this region", seasonID)
+		return episodeConnection{}, fmt.Errorf("netflix has no season %d in this region", seasonID)
 	}
-	edges := resp.Videos[0].Episodes.Edges
-	episodes := make([]Episode, 0, len(edges))
-	for _, edge := range edges {
-		episodes = append(episodes, edge.Node.toEpisode())
-	}
-	return episodes, nil
+	return resp.Videos[0].Episodes, nil
 }
 
 // SeasonByNumber picks a show's season by its number.
