@@ -82,3 +82,30 @@ func chromeSpecHTTP1() (utls.ClientHelloSpec, error) {
 	}
 	return spec, nil
 }
+
+// userAgentTransport stamps every request with the client's user agent. The
+// header has to agree with the TLS fingerprint underneath it, so it is applied
+// once here rather than at each of the three places that build a request, where
+// one could be forgotten.
+type userAgentTransport struct {
+	base      http.RoundTripper
+	userAgent func() string
+}
+
+func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("user-agent") == "" {
+		req = req.Clone(req.Context())
+		req.Header.Set("user-agent", t.userAgent())
+	}
+	return t.base.RoundTrip(req)
+}
+
+// useTransport installs rt as the client's transport, keeping the user-agent
+// policy above it. Tests call it with a stub server's transport so they travel
+// the same path production does.
+func (c *Client) useTransport(rt http.RoundTripper) {
+	if rt == nil {
+		rt = http.DefaultTransport
+	}
+	c.HTTP.Transport = &userAgentTransport{base: rt, userAgent: func() string { return c.UserAgent }}
+}

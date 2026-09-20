@@ -20,7 +20,6 @@ func (c *Client) newReq(method, rawURL string, body io.Reader) (*http.Request, e
 	}
 	req.Header.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("accept-language", c.acceptLanguage())
-	req.Header.Set("user-agent", c.UserAgent)
 	req.Header.Set("referer", c.BaseURL+"/")
 	req.Header.Set("upgrade-insecure-requests", "1")
 	if c.Cookie != "" && trustedCookieRequest(rawURL) && cookie.ValidHeader(c.Cookie) {

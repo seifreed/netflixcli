@@ -97,7 +97,6 @@ func (c *Client) newGraphQLRequest(op string, body []byte) (*http.Request, error
 	req.Header.Set("accept", "*/*")
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("accept-language", c.acceptLanguage())
-	req.Header.Set("user-agent", c.UserAgent)
 	req.Header.Set("origin", BaseURL)
 	req.Header.Set("referer", BaseURL+"/")
 	req.Header.Set("cookie", c.Cookie)

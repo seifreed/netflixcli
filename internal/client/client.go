@@ -96,11 +96,11 @@ func New() *Client {
 		}
 		return nil
 	}
-	if tr, err := newChromeTransport(); err == nil {
-		hc.Transport = tr
-	} else {
+	tr, err := newChromeTransport()
+	if err != nil {
 		c.transportErr = err
 	}
+	c.useTransport(tr)
 	c.Catalog = &Catalog{c}
 	c.Library = &Library{c}
 	c.Account = &Account{c}

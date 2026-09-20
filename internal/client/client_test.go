@@ -18,7 +18,7 @@ func testClient(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Serv
 	t.Cleanup(srv.Close)
 	c := New()
 	c.BaseURL = srv.URL
-	c.HTTP = srv.Client()
+	c.useTransport(srv.Client().Transport)
 	return c, srv
 }
 
@@ -175,5 +175,42 @@ func TestGraphQLWithoutSession(t *testing.T) {
 	c := New()
 	if err := c.GraphQL("SearchPageQueryResults", nil, nil); err == nil {
 		t.Fatal("want an error when no session is configured")
+	}
+}
+
+// The user agent is applied by the transport, so a request built anywhere in
+// the package carries it — including the ones that do not go through newReq.
+func TestEveryRequestCarriesTheUserAgent(t *testing.T) {
+	var seen []string
+	c, srv := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Header.Get("user-agent"))
+		w.Write([]byte("{}"))
+	})
+	req, err := http.NewRequest("GET", srv.URL+"/anything", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	if _, err := c.HTTP.Do(req); err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	if len(seen) != 1 || !strings.Contains(seen[0], "Chrome/") {
+		t.Errorf("user-agent = %q, want the Chrome one the fingerprint claims", seen)
+	}
+}
+
+// A caller that sets its own user agent keeps it.
+func TestExplicitUserAgentIsNotOverwritten(t *testing.T) {
+	var seen string
+	c, srv := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Get("user-agent")
+		w.Write([]byte("{}"))
+	})
+	req, _ := http.NewRequest("GET", srv.URL+"/anything", nil)
+	req.Header.Set("user-agent", "custom/1.0")
+	if _, err := c.HTTP.Do(req); err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	if seen != "custom/1.0" {
+		t.Errorf("user-agent = %q, want the caller's", seen)
 	}
 }

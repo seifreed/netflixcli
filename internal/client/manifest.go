@@ -89,7 +89,6 @@ func (c *Client) scrapeManifest(bundleURL string) (*queryManifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("user-agent", c.UserAgent)
 	req.Header.Set("accept", "*/*")
 	req.Header.Set("referer", c.BaseURL+"/")
 	resp, err := c.HTTP.Do(req)

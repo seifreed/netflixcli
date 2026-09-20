@@ -15,7 +15,7 @@ func graphQLClient(t *testing.T, handler http.HandlerFunc) *Client {
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	c := New()
-	c.HTTP = srv.Client()
+	c.useTransport(srv.Client().Transport)
 	c.GraphQLURL = srv.URL
 	c.Cookie = "NetflixId=secret"
 	c.Lang = "es-ES"
