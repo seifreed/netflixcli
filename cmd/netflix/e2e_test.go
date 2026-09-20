@@ -43,7 +43,7 @@ const netflixPage = `<!DOCTYPE html><html><body><script>` +
 
 // stubNetflix points the CLI at a server that answers every page with one
 // fixture, and gives it a throwaway config directory holding a session.
-func stubNetflix(t *testing.T) *httptest.Server {
+func stubNetflix(t *testing.T) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("content-type", "text/html")
@@ -60,7 +60,6 @@ func stubNetflix(t *testing.T) *httptest.Server {
 	if err := os.WriteFile(filepath.Join(dir, "session.json"), []byte(session), 0o600); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
-	return srv
 }
 
 // runCommand runs the CLI as main would and returns its exit code and stdout.

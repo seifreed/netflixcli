@@ -28,8 +28,7 @@ type pinotSection struct {
 		Edges []struct {
 			Node pinotEntity `json:"node"`
 		} `json:"edges"`
-		TotalCount int           `json:"totalCount"`
-		PageInfo   pinotPageInfo `json:"pageInfo"`
+		PageInfo pinotPageInfo `json:"pageInfo"`
 	} `json:"entities"`
 }
 

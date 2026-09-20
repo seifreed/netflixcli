@@ -109,13 +109,17 @@ func TestHelpRowsFitTheColumn(t *testing.T) {
 	}
 }
 
+// Two rows answering to the same spelling would make dispatch depend on table
+// order, which nothing else does.
 func TestCommandNamesAreUnique(t *testing.T) {
 	seen := map[string]bool{}
-	for _, name := range commandNames() {
-		if seen[name] {
-			t.Errorf("%q is registered twice", name)
+	for _, c := range commands() {
+		for _, name := range append([]string{c.name}, c.aliases...) {
+			if seen[name] {
+				t.Errorf("%q is registered twice", name)
+			}
+			seen[name] = true
 		}
-		seen[name] = true
 	}
 }
 

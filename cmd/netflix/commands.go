@@ -325,15 +325,3 @@ func subcommandsOf(name string) []string {
 	sort.Strings(subs)
 	return subs
 }
-
-// commandNames lists every dispatchable name and alias, for error messages and
-// tests.
-func commandNames() []string {
-	var names []string
-	for _, c := range commands() {
-		names = append(names, c.name)
-		names = append(names, c.aliases...)
-	}
-	sort.Strings(names)
-	return names
-}
