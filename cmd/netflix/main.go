@@ -47,6 +47,8 @@ func run(args []string) int {
 		err = cmdProfiles(args[1:])
 	case "profile":
 		err = cmdProfile(args[1:])
+	case "open":
+		err = cmdOpen(args[1:])
 	case "rate":
 		err = cmdRate(args[1:])
 	case "history":
@@ -120,6 +122,8 @@ READ COMMANDS:
                            (all three take --limit N)
   title <id|url>           full detail for one title (synopsis, cast, genres)
                            --similar   also resolve the similar-title ids
+  open <id|url>            open a title in the system browser
+                           --watch     open the player instead of the page
 
 WRITE COMMANDS (they change this profile's account state):
   mylist add <id|url>      save a title to My List
