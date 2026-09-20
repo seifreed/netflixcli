@@ -1,19 +1,28 @@
-// Package client is a thin, dependency-light Go client for netflix.com. It
-// talks to the same Shakti endpoints the web app uses (the Falcor
-// pathEvaluator), presenting Chrome's TLS fingerprint (uTLS) so the requests
-// look like the browser's. Netflix serves member data only to a signed-in
-// session, so every call carries a browser cookie lifted with
-// `login --from-browser`, `import-har` or `set-cookie`.
+// Package client talks to netflix.com the way the web app does, over two paths
+// because Netflix serves its data two ways:
+//
+//   - Browse surfaces come out of the page itself. Netflix server-renders every
+//     row it shows as an Apollo cache embedded in the HTML, so one page fetch
+//     yields My List, Continue Watching and the editorial rows (apollo.go).
+//   - Search, title detail, episodes and every write go to the GraphQL gateway
+//     as *persisted* operations: an id, not a query document. The ids change
+//     with each Netflix build, so they are scraped from the client bundle and
+//     cached (graphql.go, manifest.go).
+//
+// Requests present Chrome's TLS fingerprint (transport.go) and carry a browser
+// cookie lifted with `login --from-browser`, `import-har` or `set-cookie`;
+// Netflix serves member data to nothing else. The package never handles a
+// password.
+//
+// Client owns the session. What you can ask for hangs off it as three services
+// — Catalog, Library and Account — described in services.go.
 package client
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,8 +54,8 @@ type Client struct {
 	// Logf, when set, receives human-readable diagnostics on stderr (nil disables).
 	Logf func(format string, args ...any)
 
-	// fetch is an internal test hook; production commands leave it nil and use
-	// the configured HTTP transport.
+	// fetch, when set, renders pages somewhere other than this client's
+	// transport — an already-running Chrome, or a stub in tests. See SetFetcher.
 	fetch func(url string) (string, error)
 
 	// What the session can be asked for. See services.go.
@@ -54,8 +63,8 @@ type Client struct {
 	Library *Library
 	Account *Account
 
-	ctx          *shaktiContext // lazily bootstrapped build id + authURL
-	queries      *queryManifest // lazily resolved persisted GraphQL query ids
+	ctx          *shaktiContext // page bootstrap: build id, bundle URL, who is signed in
+	queries      *queryManifest // persisted GraphQL query ids for that build
 	transportErr error
 	warnOnce     sync.Once
 }
@@ -96,133 +105,6 @@ func New() *Client {
 	c.Library = &Library{c}
 	c.Account = &Account{c}
 	return c
-}
-
-// APIError carries a non-2xx response so callers can branch on it.
-type APIError struct {
-	Status     int
-	Body       string
-	RetryAfter time.Duration
-}
-
-func (e *APIError) Error() string {
-	body := truncate(e.Body, 200)
-	if isHTMLBody(e.Body) {
-		body = fmt.Sprintf("(HTML error page, %d bytes)", len(e.Body))
-	}
-	return fmt.Sprintf("netflix: HTTP %d: %s", e.Status, body)
-}
-
-func isHTMLBody(body string) bool {
-	head := strings.ToLower(strings.TrimSpace(body))
-	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")
-}
-
-// httpStatus reports the HTTP status carried by err when it is (or wraps) an
-// *APIError. ok is false for any other error.
-func httpStatus(err error) (status int, ok bool) {
-	var ae *APIError
-	if errors.As(err, &ae) {
-		return ae.Status, true
-	}
-	return 0, false
-}
-
-// ErrNoSession is returned before any request when no cookie is configured.
-var ErrNoSession = errors.New("no Netflix session — run `netflix login --from-browser chrome` first")
-
-// ErrSessionRejected is what a 401 or 403 means in practice: the cookie is no
-// longer good enough for Netflix. Raw statuses tell the user nothing, so every
-// response carrying one is wrapped in this, with the fix in the message.
-var ErrSessionRejected = errors.New("netflix refused the session — re-import it with `netflix login --from-browser chrome`")
-
-// rejectsSession reports whether a status means the session was refused rather
-// than the request being wrong.
-func rejectsSession(status int) bool {
-	return status == http.StatusUnauthorized || status == http.StatusForbidden
-}
-
-func (c *Client) newReq(method, rawURL string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest(method, rawURL, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("accept-language", c.acceptLanguage())
-	req.Header.Set("user-agent", c.UserAgent)
-	req.Header.Set("referer", c.BaseURL+"/")
-	req.Header.Set("upgrade-insecure-requests", "1")
-	if c.Cookie != "" && trustedCookieRequest(rawURL) && cookie.ValidHeader(c.Cookie) {
-		req.Header.Set("cookie", c.Cookie)
-	}
-	return req, nil
-}
-
-func (c *Client) acceptLanguage() string {
-	lang := strings.TrimSpace(c.Lang)
-	if lang == "" {
-		lang = "es-ES"
-	}
-	base, _, _ := strings.Cut(lang, "-")
-	if base == lang {
-		return fmt.Sprintf("%s;q=0.9,en;q=0.8", lang)
-	}
-	return fmt.Sprintf("%s,%s;q=0.9,en;q=0.8", lang, base)
-}
-
-func trustedCookieRequest(rawURL string) bool {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return false
-	}
-	return strings.EqualFold(u.Scheme, "https") && cookie.IsNetflixHost(u.Hostname())
-}
-
-// Automatic backoff on throttling (HTTP 429/503).
-const (
-	maxRetries       = 3
-	defaultRetryBase = 500 * time.Millisecond
-	maxRetryWait     = 10 * time.Second
-)
-
-func isRateLimited(err error) bool {
-	status, ok := httpStatus(err)
-	return ok && (status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable)
-}
-
-func parseRetryAfter(h string) time.Duration {
-	h = strings.TrimSpace(h)
-	if h == "" {
-		return -1
-	}
-	if secs, err := strconv.Atoi(h); err == nil && secs >= 0 {
-		return time.Duration(secs) * time.Second
-	}
-	if at, err := http.ParseTime(h); err == nil {
-		if wait := time.Until(at); wait > 0 {
-			return wait
-		}
-		return 0
-	}
-	return -1
-}
-
-func retryWait(err error, backoff time.Duration) time.Duration {
-	var ae *APIError
-	if errors.As(err, &ae) && ae.RetryAfter >= 0 {
-		return capWait(ae.RetryAfter)
-	}
-	return capWait(backoff + time.Duration(rand.Int63n(int64(250*time.Millisecond))))
-}
-
-func capWait(d time.Duration) time.Duration {
-	if d > maxRetryWait {
-		return maxRetryWait
-	}
-	if d < 0 {
-		return 0
-	}
-	return d
 }
 
 const maxBodyBytes = 32 << 20
