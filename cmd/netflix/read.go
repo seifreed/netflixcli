@@ -156,6 +156,9 @@ func cmdBrowse(args []string) error {
 	}
 	for _, row := range rows {
 		fmt.Printf("\n%s\n", row.Name)
+		if len(row.Titles) == 0 {
+			fmt.Println("  (empty)")
+		}
 		for _, t := range row.Titles {
 			fmt.Printf("  • %s  [%d]\n", t.Title, t.ID)
 		}

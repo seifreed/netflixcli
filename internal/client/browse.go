@@ -6,13 +6,13 @@ import (
 	"strings"
 )
 
-// Browse surfaces, named as the CLI exposes them. Each maps to the page the web
-// app renders for that tab.
+// Browse surfaces, named as the CLI exposes them. Each maps to a page whose
+// rows Netflix server-renders; /latest and /browse/games do not (they ship an
+// empty cache and fetch their rows client-side from a query that answers a
+// server-side error for static categories), so they are not offered.
 const (
 	SurfaceHome      = "home"
 	SurfaceMyNetflix = "my-netflix"
-	SurfaceLatest    = "latest"
-	SurfaceGames     = "games"
 )
 
 // Feed ids Netflix gives the personal rows of the My Netflix page. The row
@@ -41,15 +41,11 @@ func surfacePath(surface string) (string, error) {
 		return "/browse", nil
 	case SurfaceMyNetflix, "my-list", "mylist":
 		return "/browse/my-list", nil
-	case SurfaceLatest, "new":
-		return "/latest", nil
-	case SurfaceGames:
-		return "/browse/games", nil
 	}
 	if id, err := strconv.Atoi(strings.TrimPrefix(surface, "genre-")); err == nil && id > 0 {
 		return fmt.Sprintf("/browse/genre/%d", id), nil
 	}
-	return "", fmt.Errorf("unknown browse surface %q (want home, my-netflix, latest, games or a genre id)", surface)
+	return "", fmt.Errorf("unknown browse surface %q (want home, my-netflix or a genre id — run `netflix genres` for the ids)", surface)
 }
 
 // Browse returns the rows of a browse surface, read from the page Netflix

@@ -80,8 +80,6 @@ func TestSurfacePath(t *testing.T) {
 		"home":       "/browse",
 		"my-netflix": "/browse/my-list",
 		"mylist":     "/browse/my-list",
-		"latest":     "/latest",
-		"games":      "/browse/games",
 		"83":         "/browse/genre/83",
 		"genre-83":   "/browse/genre/83",
 	} {
@@ -94,7 +92,10 @@ func TestSurfacePath(t *testing.T) {
 			t.Errorf("surfacePath(%q) = %q, want %q", surface, got, want)
 		}
 	}
-	if _, err := surfacePath("nonsense"); err == nil {
-		t.Error("want an error for an unknown surface")
+	// /latest and /browse/games carry no rows, so they are not surfaces.
+	for _, surface := range []string{"nonsense", "latest", "games"} {
+		if _, err := surfacePath(surface); err == nil {
+			t.Errorf("surfacePath(%q) was accepted, want a refusal", surface)
+		}
 	}
 }

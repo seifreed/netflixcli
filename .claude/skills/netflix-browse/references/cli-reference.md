@@ -27,10 +27,12 @@ already the right one.
 | `netflix title ID\|URL [--similar]` | Synopsis, cast, directors, writers, genres, mood tags, runtime, certification, playback badges, watch status, thumb rating, My List membership. `--similar` resolves the related ids to names in one batched call. |
 | `netflix seasons SHOW-ID\|URL` | A show's seasons: number, title, episode count and the season id the next command needs. Errors clearly for a movie. |
 | `netflix episodes SHOW-ID\|URL [--season N] [--all] [--limit N]` | Episodes with number, title, synopsis, runtime, and a resume marker where the profile left off. Defaults to the first season. |
-| `netflix browse [SURFACE] [--limit N]` | Rows of a browse page. Surfaces: `home` (default), `my-netflix`, `latest`, `games`, or a genre id such as `83`. `--limit` caps titles per row. |
+| `netflix genres [FILTER]` | The genres this region offers with the ids `browse` takes. Netflix never shows these ids in the UI, so this is the only way to find one. |
+| `netflix browse [SURFACE] [--limit N]` | Rows of a browse page. Surfaces: `home` (default), `my-netflix`, or a genre id such as `8711`. `--limit` caps titles per row. A personal row that exists but is empty is reported as empty, not omitted. |
 | `netflix mylist [--limit N]` | Titles in this profile's My List. |
 | `netflix continue [--limit N]` | Titles this profile is part-way through. |
 | `netflix liked [--limit N]` | Titles this profile gave a thumbs up. |
+| `netflix reminders [--limit N]` | Titles this profile is waiting for. |
 | `netflix history [--limit N] [--csv]` | Viewing activity, newest first, dates as `YYYY-MM-DD`. |
 | `netflix open ID\|URL [--watch]` | Open the title page, or the player with `--watch`, in the system browser. |
 
@@ -43,6 +45,8 @@ These change account state. Run them only on an explicit request.
 | `netflix mylist add ID\|URL` | Save a title to My List. |
 | `netflix mylist remove ID\|URL` | Drop a title from My List. |
 | `netflix rate ID\|URL up\|down\|love\|none` | Set this profile's thumb rating. |
+| `netflix continue remove ID\|URL` | Drop a title from Continue Watching. The viewing-history entry stays. Not reversible from the CLI — ask before running it. |
+| `netflix remind add\|remove ID\|URL` | Release reminder for a title that is not out yet. Netflix refuses one for an already-available title. |
 
 ## Account
 

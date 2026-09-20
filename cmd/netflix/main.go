@@ -42,7 +42,11 @@ func run(args []string) int {
 	case "mylist", "my-list":
 		err = runMyList(args[1:])
 	case "continue", "continue-watching":
-		err = cmdFeed(client.FeedContinueWatching)(args[1:])
+		err = runContinue(args[1:])
+	case "reminders":
+		err = cmdFeed(client.FeedReminders)(args[1:])
+	case "remind":
+		err = cmdRemind(args[1:])
 	case "liked":
 		err = cmdFeed(client.FeedLiked)(args[1:])
 	case "profiles":
@@ -85,6 +89,14 @@ func run(args []string) int {
 	return 0
 }
 
+// runContinue dispatches `continue` between listing and dropping a title.
+func runContinue(args []string) error {
+	if len(args) > 0 && (args[0] == "remove" || args[0] == "rm") {
+		return cmdContinueRemove(args[1:])
+	}
+	return cmdFeed(client.FeedContinueWatching)(args)
+}
+
 // runMyList dispatches `mylist` between listing and the two writes.
 func runMyList(args []string) error {
 	if len(args) > 0 {
@@ -121,12 +133,13 @@ READ COMMANDS:
                            --limit N   how many titles (pages past the first 48)
   genres [filter]          genres this region offers, with the ids browse takes
   browse [surface]         rows of a browse page (home by default)
-                           surface: home | my-netflix | latest | games | <genre-id>
+                           surface: home | my-netflix | <genre-id> (see genres)
                            --limit N   cap titles per row
   mylist                   titles saved in this profile's My List
   continue                 titles this profile is part-way through
   liked                    titles this profile gave a thumbs up
-                           (all three take --limit N)
+  reminders                titles this profile is waiting for
+                           (all four take --limit N)
   title <id|url>           full detail for one title (synopsis, cast, genres)
                            --similar   also resolve the similar-title ids
   seasons <show-id|url>    a show's seasons
@@ -140,6 +153,9 @@ WRITE COMMANDS (they change this profile's account state):
   mylist add <id|url>      save a title to My List
   mylist remove <id|url>   drop a title from My List
   rate <id|url> <rating>   thumb rating: up | down | love | none
+  continue remove <id>     drop a title from Continue Watching
+                           (the viewing history entry stays)
+  remind add|remove <id>   release reminder for a title that is not out yet
 
 ACCOUNT:
   profiles                 list the account's profiles (* marks the active one)

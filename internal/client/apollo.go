@@ -165,7 +165,10 @@ func decodeBase64Loose(s string) string {
 	return string(raw)
 }
 
-// rows walks the page's sections into the CLI's row model.
+// rows walks the page's sections into the CLI's row model. A personal row is
+// kept even when it is empty — "My List is empty" is an answer, and dropping it
+// would be indistinguishable from Netflix not rendering it at all — while an
+// empty editorial row is just noise.
 func (c apolloCache) rows() []Row {
 	page := c.rootPage()
 	if page == nil {
@@ -179,12 +182,13 @@ func (c apolloCache) rows() []Row {
 			continue
 		}
 		titles := c.sectionTitles(section)
-		if len(titles) == 0 {
+		feed := c.sectionFeed(section)
+		if len(titles) == 0 && feed == "" {
 			continue
 		}
 		rows = append(rows, Row{
 			Name:   fieldString(section, "displayString"),
-			Feed:   c.sectionFeed(section),
+			Feed:   feed,
 			Titles: titles,
 		})
 	}

@@ -38,7 +38,7 @@ make check     # gofmt, vet, tests, build
 | `netflix episodes <show-id>` | a season's episodes (`--season N`, `--all`, `--limit N`) |
 | `netflix open <id\|url>` | open the title page, or the player with `--watch` |
 | `netflix genres [filter]` | genres this region offers, with the ids `browse` takes |
-| `netflix browse [surface]` | rows of a browse page: `home`, `my-netflix`, `latest`, `games` or a genre id |
+| `netflix browse [surface]` | rows of a browse page: `home`, `my-netflix` or a genre id |
 | `netflix mylist` | titles saved in this profile's My List |
 | `netflix continue` | titles this profile is part-way through |
 | `netflix liked` | titles this profile gave a thumbs up |

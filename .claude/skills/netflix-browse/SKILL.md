@@ -44,10 +44,12 @@ where the user is signed in — never to ask for credentials.
 | detail: plot, cast, year, runtime, rating | `netflix title <id\|url>` |
 | "something like X" | `netflix title <id> --similar` |
 | "how many seasons / what are the episodes?" | `netflix seasons <id>` then `netflix episodes <id> --season N` |
-| what is on the home page / a genre | `netflix browse [home\|latest\|games\|<genre-id>]` |
+| what genres exist / "algo de terror" | `netflix genres [filter]`, then `netflix browse <genre-id>` |
+| what is on the home page / a genre | `netflix browse [home\|<genre-id>]` |
 | "what's on my list?" | `netflix mylist` |
 | "what am I in the middle of?" | `netflix continue` |
 | "what have I watched?" | `netflix history --limit 50` |
+| "what am I waiting for?" | `netflix reminders` |
 | save / unsave a title | `netflix mylist add\|remove <id>` |
 | thumbs up / down | `netflix rate <id> up\|down\|love\|none` |
 | open it to watch | `netflix open <id> --watch` |

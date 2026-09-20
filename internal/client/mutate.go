@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -10,16 +11,18 @@ type EntityState struct {
 	ID          int    `json:"id"`
 	Title       string `json:"title"`
 	InMyList    bool   `json:"inMyList"`
+	Reminder    bool   `json:"reminder"`
 	ThumbRating string `json:"thumbRating,omitempty"`
 	URL         string `json:"url"`
 }
 
 type entityEnvelope struct {
 	Entity struct {
-		VideoID      int    `json:"videoId"`
-		Title        string `json:"title"`
-		IsInPlaylist bool   `json:"isInPlaylist"`
-		ThumbRating  string `json:"thumbRating"`
+		VideoID          int    `json:"videoId"`
+		Title            string `json:"title"`
+		IsInPlaylist     bool   `json:"isInPlaylist"`
+		IsInRemindMeList bool   `json:"isInRemindMeList"`
+		ThumbRating      string `json:"thumbRating"`
 	} `json:"entity"`
 	Errors []struct {
 		Message string `json:"message"`
@@ -34,6 +37,7 @@ func (e entityEnvelope) state() (EntityState, error) {
 		ID:          e.Entity.VideoID,
 		Title:       e.Entity.Title,
 		InMyList:    e.Entity.IsInPlaylist,
+		Reminder:    e.Entity.IsInRemindMeList,
 		ThumbRating: e.Entity.ThumbRating,
 		URL:         TitleURL(e.Entity.VideoID),
 	}, nil
@@ -96,4 +100,55 @@ func (c *Client) Rate(videoID int, rating string) (EntityState, error) {
 		return EntityState{}, err
 	}
 	return resp.SetEntityThumbRating.state()
+}
+
+// AddReminder asks Netflix to remind this profile when a title arrives. Only
+// unreleased titles can carry one.
+func (c *Client) AddReminder(videoID int) (EntityState, error) {
+	return c.reminderMutation("AddReminder", "addUnifiedEntityToRemindMe", videoID)
+}
+
+// RemoveReminder drops a title's release reminder.
+func (c *Client) RemoveReminder(videoID int) (EntityState, error) {
+	return c.reminderMutation("RemoveReminder", "removeUnifiedEntityFromRemindMe", videoID)
+}
+
+// The reminder mutations answer with the entity itself rather than wrapping it,
+// so the envelope is filled from that.
+func (c *Client) reminderMutation(op, field string, videoID int) (EntityState, error) {
+	var resp map[string]json.RawMessage
+	if err := c.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
+		return EntityState{}, err
+	}
+	raw, ok := resp[field]
+	if !ok {
+		return EntityState{}, fmt.Errorf("netflix returned no result for %s", op)
+	}
+	var env entityEnvelope
+	if err := json.Unmarshal(raw, &env.Entity); err != nil {
+		return EntityState{}, fmt.Errorf("decode %s result: %w", op, err)
+	}
+	if env.Entity.VideoID == 0 {
+		return EntityState{}, fmt.Errorf("netflix did not accept a reminder for title %d (it may already be available)", videoID)
+	}
+	return env.state()
+}
+
+// RemoveFromContinueWatching drops a title from the profile's Continue Watching
+// row. It does not erase the viewing history entry.
+func (c *Client) RemoveFromContinueWatching(videoID int) error {
+	var resp struct {
+		RemoveFromContinueWatching struct {
+			Success bool `json:"success"`
+		} `json:"removeFromContinueWatching"`
+	}
+	if err := c.GraphQL("RemoveFromContinueWatching", map[string]any{
+		"unifiedEntityId": entityID(videoID),
+	}, &resp); err != nil {
+		return err
+	}
+	if !resp.RemoveFromContinueWatching.Success {
+		return fmt.Errorf("netflix refused to drop title %d from Continue Watching", videoID)
+	}
+	return nil
 }
