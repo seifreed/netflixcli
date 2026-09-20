@@ -33,21 +33,17 @@ func (s *Account) CurrentProfile() (Profile, error) {
 }
 
 // Profiles lists the account's profiles, marking the one the session is
-// currently acting as. They are read out of the page bootstrap, so this costs
-// one request.
+// currently acting as. They come out of the page bootstrap, so they are free
+// once anything else has run — and re-read after a switch, which clears it.
 func (s *Account) Profiles() ([]Profile, error) {
-	if s.client.Cookie == "" {
-		return nil, ErrNoSession
-	}
-	html, err := s.client.getText(s.client.BaseURL + "/browse")
+	ctx, err := s.client.context()
 	if err != nil {
 		return nil, err
 	}
-	cache, err := parseApolloCache(html)
-	if err != nil {
-		return nil, err
+	if len(ctx.Profiles) == 0 {
+		return nil, fmt.Errorf("netflix did not list this account's profiles")
 	}
-	return cache.profiles(), nil
+	return ctx.Profiles, nil
 }
 
 // currentProfile is the profile the session is acting as.

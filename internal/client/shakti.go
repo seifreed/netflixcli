@@ -12,7 +12,8 @@ type shaktiContext struct {
 	BuildID   string
 	BundleURL string // Akira client bundle, where the persisted query ids live
 	User      UserInfo
-	Profile   Profile // the profile the session is acting as
+	Profile   Profile   // the profile the session is acting as
+	Profiles  []Profile // every profile on the account, active one first
 }
 
 // UserInfo is the account summary Netflix embeds in every page. GUID identifies
@@ -88,10 +89,11 @@ func (c *Client) context() (*shaktiContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The same page carries the profile cache, so the active profile costs no
-	// extra request.
+	// The same page carries the profile cache, so who the session acts as and
+	// what else it could act as both cost no extra request.
 	if cache, cacheErr := parseApolloCache(html); cacheErr == nil {
 		ctx.Profile = cache.currentProfile()
+		ctx.Profiles = cache.profiles()
 	}
 	c.ctx = ctx
 	return ctx, nil

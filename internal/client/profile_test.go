@@ -1,6 +1,9 @@
 package client
 
-import "testing"
+import (
+	"net/http"
+	"testing"
+)
 
 const pageWithProfiles = `<script>netflix.reactContext.models.graphql = JSON.parse('{"data":{` +
 	`"ROOT_QUERY":{"account":{"__ref":"Account:1"},"currentProfile":{"__ref":"Profile:{\\"guid\\":\\"BBB\\"}"}},` +
@@ -56,5 +59,63 @@ func TestCurrentProfileIsEmptyWithoutACache(t *testing.T) {
 	var cache apolloCache
 	if got := cache.currentProfile(); got.GUID != "" {
 		t.Errorf("currentProfile = %+v, want the zero value", got)
+	}
+}
+
+// memberPage carries both halves the client bootstraps from: the reactContext
+// blob (see shakti_test.go) and the Apollo cache holding the profiles.
+const memberPage = bootstrapPage + pageWithProfiles
+
+// Who the session is, who it acts as and what else it could act as all come off
+// the one page the client bootstraps from. Profiles used to fetch it again, so
+// a configured default profile cost two loads before any command ran.
+func TestTheAccountIsReadFromOnePageLoad(t *testing.T) {
+	var loads int
+	c, _ := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		loads++
+		if _, err := w.Write([]byte(memberPage)); err != nil {
+			t.Errorf("stub write: %v", err)
+		}
+	})
+	c.Cookie = "NetflixId=stub"
+
+	if _, err := c.Account.Whoami(); err != nil {
+		t.Fatalf("Whoami: %v", err)
+	}
+	profiles, err := c.Account.Profiles()
+	if err != nil {
+		t.Fatalf("Profiles: %v", err)
+	}
+	if _, err := c.Account.CurrentProfile(); err != nil {
+		t.Fatalf("CurrentProfile: %v", err)
+	}
+	if len(profiles) != 3 {
+		t.Errorf("got %d profiles, want 3", len(profiles))
+	}
+	if loads != 1 {
+		t.Errorf("the page was loaded %d times, want 1", loads)
+	}
+}
+
+// A profile switch invalidates the bootstrap, so the list is read afresh.
+func TestSwitchingProfilesRereadsTheAccount(t *testing.T) {
+	var loads int
+	c, _ := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		loads++
+		if _, err := w.Write([]byte(memberPage)); err != nil {
+			t.Errorf("stub write: %v", err)
+		}
+	})
+	c.Cookie = "NetflixId=stub"
+
+	if _, err := c.Account.Profiles(); err != nil {
+		t.Fatalf("Profiles: %v", err)
+	}
+	c.ctx = nil // what UseProfile does once netflix has accepted the switch
+	if _, err := c.Account.Profiles(); err != nil {
+		t.Fatalf("Profiles after switch: %v", err)
+	}
+	if loads != 2 {
+		t.Errorf("the page was loaded %d times, want 2", loads)
 	}
 }

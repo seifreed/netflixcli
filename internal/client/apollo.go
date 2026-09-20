@@ -196,11 +196,17 @@ func (c apolloCache) rows() []Row {
 	return rows
 }
 
+// sectionCards returns a section's entity edges — where its cards hang in the
+// cache, spelled the same way for everything that walks them.
+func (c apolloCache) sectionCards(section map[string]any) []any {
+	edges, _ := field(c.deref(field(section, "entities")), "edges").([]any)
+	return edges
+}
+
 // sectionRanked reports whether the cached section is a ranking, by the same
 // card treatment the fetched sections carry.
 func (c apolloCache) sectionRanked(section map[string]any) bool {
-	edges, _ := field(c.deref(field(section, "entities")), "edges").([]any)
-	for _, edge := range edges {
+	for _, edge := range c.sectionCards(section) {
 		card := c.deref(field(c.deref(edge), "node"))
 		if fieldString(card, "__typename") == rankedTreatment {
 			return true
@@ -210,7 +216,7 @@ func (c apolloCache) sectionRanked(section map[string]any) bool {
 }
 
 func (c apolloCache) sectionTitles(section map[string]any) []Title {
-	edges, _ := field(c.deref(field(section, "entities")), "edges").([]any)
+	edges := c.sectionCards(section)
 	titles := make([]Title, 0, len(edges))
 	for _, edge := range edges {
 		card := c.deref(field(c.deref(edge), "node"))
