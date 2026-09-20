@@ -17,8 +17,8 @@ func TestParseReactContext(t *testing.T) {
 	if ctx.BuildID != "v1a09dd61" {
 		t.Errorf("build id = %q, want v1a09dd61", ctx.BuildID)
 	}
-	if ctx.AuthURL != "c1.token==" {
-		t.Errorf("authURL = %q, want the \\x escapes decoded", ctx.AuthURL)
+	if ctx.User.CountryOfSignup != "ES" {
+		t.Errorf("country = %q, want the \\x-escaped blob to have decoded", ctx.User.CountryOfSignup)
 	}
 	if ctx.User.Name != "Ada" || ctx.User.NumProfiles != 4 {
 		t.Errorf("user = %+v, want Ada with 4 profiles", ctx.User)

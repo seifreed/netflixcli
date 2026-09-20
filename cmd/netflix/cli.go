@@ -52,9 +52,10 @@ func newOutputFlags(name string) (*flag.FlagSet, *common) {
 }
 
 // newClient builds a client from flags, config and the cached browser session.
-// Every command uses the same HTTP path; login only reads the user's existing
-// browser cookie store.
-func newClient(c *common) *client.Client {
+// With --profile (or a configured default) it acts as that profile for this
+// invocation only: the switch happens in memory and the stored session keeps
+// pointing where it did. `profile use` is what changes it for good.
+func newClient(c *common) (*client.Client, error) {
 	cl := client.New()
 	cl.Logf = stderrLogf
 	if u := os.Getenv("NETFLIX_BASE_URL"); u != "" {
@@ -66,9 +67,6 @@ func newClient(c *common) *client.Client {
 	}
 	if v := firstNonEmpty(c.lang, cfg.Defaults.Lang); v != "" {
 		cl.Lang = v
-	}
-	if v := firstNonEmpty(c.profile, cfg.Defaults.Profile); v != "" {
-		cl.Profile = v
 	}
 	if cached := session.LoadSession(); cached.Cookie != "" {
 		cl.Cookie = cached.Cookie
@@ -84,7 +82,12 @@ func newClient(c *common) *client.Client {
 			cl.SetFetcher(func(rawURL string) (string, error) { return fetcher.Fetch(rawURL, 60*time.Second) })
 		}
 	}
-	return cl
+	if profile := firstNonEmpty(c.profile, cfg.Defaults.Profile); profile != "" {
+		if _, _, err := cl.UseProfile(profile); err != nil {
+			return nil, err
+		}
+	}
+	return cl, nil
 }
 
 func parseFlags(fs *flag.FlagSet, args []string) {

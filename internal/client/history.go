@@ -19,11 +19,11 @@ type Viewing struct {
 // that. An empty profileGUID means the profile the session is acting as.
 func (c *Client) History(profileGUID string) ([]Viewing, error) {
 	if strings.TrimSpace(profileGUID) == "" {
-		user, err := c.Whoami()
+		profile, err := c.CurrentProfile()
 		if err != nil {
 			return nil, err
 		}
-		profileGUID = user.GUID
+		profileGUID = profile.GUID
 	}
 	var resp struct {
 		CSV string `json:"viewingHistoryCSV"`

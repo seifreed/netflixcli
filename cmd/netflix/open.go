@@ -23,7 +23,10 @@ func cmdOpen(args []string) error {
 	if err != nil {
 		return err
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	page := "title"
 	if *watch {
 		page = "watch"

@@ -42,10 +42,6 @@ type Client struct {
 	// GraphQLEndpoint; tests point it at a stub.
 	GraphQLURL string
 
-	// Profile is the guid of the profile whose data is requested; empty means
-	// whichever profile the cookie last selected in the browser.
-	Profile string
-
 	// Logf, when set, receives human-readable diagnostics on stderr (nil disables).
 	Logf func(format string, args ...any)
 

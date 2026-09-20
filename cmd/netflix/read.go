@@ -16,7 +16,10 @@ func cmdSearch(args []string) error {
 	if query == "" {
 		return fmt.Errorf("usage: netflix search <query>")
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	titles, err := cl.Search(query, *limit)
 	if err != nil {
 		return err
@@ -57,7 +60,10 @@ func cmdTitle(args []string) error {
 	if err != nil {
 		return err
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	detail, err := cl.Detail(id)
 	if err != nil {
 		return err
@@ -132,7 +138,10 @@ func cmdBrowse(args []string) error {
 	if positional := strings.TrimSpace(strings.Join(fs.Args(), " ")); positional != "" {
 		*surface = positional
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	rows, err := cl.Browse(*surface)
 	if err != nil {
 		return err
@@ -173,7 +182,10 @@ func cmdFeed(feed string) func([]string) error {
 		fs, cf := newCommonFlags(feed)
 		limit := fs.Int("limit", 0, "max titles to return")
 		parseFlags(fs, args)
-		cl := newClient(cf)
+		cl, err := newClient(cf)
+		if err != nil {
+			return err
+		}
 		row, err := cl.Feed(feed)
 		if err != nil {
 			return err

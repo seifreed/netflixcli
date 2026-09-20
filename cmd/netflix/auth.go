@@ -29,7 +29,10 @@ func cmdLogin(args []string) error {
 	if !cookie.LooksAuthenticated(s.Cookie) {
 		stderrLogf("cookie carries no NetflixId — sign in to www.netflix.com in that browser, then re-run")
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	user, probeErr := cl.Whoami()
 	if done, emitErr := emitStructured(cf, loginResult(s, user, probeErr)); done {
 		if emitErr != nil {
@@ -124,12 +127,17 @@ func emitSavedSession(cf *common, s session.Session) error {
 func cmdWhoami(args []string) error {
 	fs, cf := newCommonFlags("whoami")
 	parseFlags(fs, args)
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	user, err := cl.Whoami()
+	profile, _ := cl.CurrentProfile() // free once Whoami has bootstrapped
 	if done, derr := emitStructured(cf, map[string]any{
 		"hasCookie": cl.Cookie != "",
 		"accepted":  err == nil,
 		"user":      user,
+		"profile":   profile,
 	}); done {
 		if derr != nil {
 			return derr
@@ -140,6 +148,9 @@ func cmdWhoami(args []string) error {
 		return err
 	}
 	printUser(user)
+	if profile.Name != "" {
+		fmt.Printf("  acting as: %s (%s)\n", profile.Name, profile.GUID)
+	}
 	return nil
 }
 

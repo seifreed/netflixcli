@@ -32,7 +32,11 @@ func myListChange(args []string, verb string, change func(*client.Client, int) (
 	if err != nil {
 		return err
 	}
-	state, err := change(newClient(cf), id)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
+	state, err := change(cl, id)
 	if err != nil {
 		return err
 	}
@@ -59,7 +63,10 @@ func cmdRate(args []string) error {
 	if err != nil {
 		return err
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	state, err := cl.Rate(id, rest[1])
 	if err != nil {
 		return err

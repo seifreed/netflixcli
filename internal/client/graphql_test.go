@@ -19,7 +19,7 @@ func graphQLClient(t *testing.T, handler http.HandlerFunc) *Client {
 	c.GraphQLURL = srv.URL
 	c.Cookie = "NetflixId=secret"
 	c.Lang = "es-ES"
-	c.ctx = &shaktiContext{BuildID: "v1a09dd61", AuthURL: "token"}
+	c.ctx = &shaktiContext{BuildID: "v1a09dd61"}
 	c.queries = &queryManifest{Build: "v1a09dd61", Version: 102, Ops: map[string]string{"DemoQuery": "abc-123"}}
 	return c
 }

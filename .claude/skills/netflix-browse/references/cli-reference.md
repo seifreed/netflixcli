@@ -6,6 +6,10 @@ Data goes to stdout; logs and errors go to stderr. Exit codes: `0` success, `1` 
 Common flags, valid anywhere after the command: `--json`, `--jsonl`, `--toon`, `--lang es-ES|en`,
 `--profile <name|guid>`, `--browser`, `--browser-endpoint URL`.
 
+`--profile` acts as that profile for that one invocation; the stored session is
+unchanged. It costs one extra request, so omit it when the active profile is
+already the right one.
+
 ## Session
 
 | Command | Purpose |
@@ -27,7 +31,7 @@ Common flags, valid anywhere after the command: `--json`, `--jsonl`, `--toon`, `
 | `netflix mylist [--limit N]` | Titles in this profile's My List. |
 | `netflix continue [--limit N]` | Titles this profile is part-way through. |
 | `netflix liked [--limit N]` | Titles this profile gave a thumbs up. |
-| `netflix history [--limit N] [--csv]` | Viewing activity, newest first, dates as `YYYY-MM-DD`. `--profile NAME` reads another profile without switching. |
+| `netflix history [--limit N] [--csv]` | Viewing activity, newest first, dates as `YYYY-MM-DD`. |
 | `netflix open ID\|URL [--watch]` | Open the title page, or the player with `--watch`, in the system browser. |
 
 ## Write

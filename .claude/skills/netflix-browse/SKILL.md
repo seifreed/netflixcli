@@ -67,7 +67,7 @@ Titles are localised and ambiguous; ids are not.
 
 `netflix profiles` lists them and marks the active one. Two different things:
 
-- `netflix history --profile "<name>"` reads another profile's activity **without switching**.
+- `--profile "<name>"` on any command acts as that profile for that one call, **without switching**.
 - `netflix profile use "<name>"` re-points the stored session and affects every later command.
   Prefer the first unless the user asked to switch.
 

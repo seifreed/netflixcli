@@ -19,6 +19,19 @@ type Profile struct {
 	Current     bool   `json:"current"`
 }
 
+// CurrentProfile reports the profile the session is acting as. It comes from
+// the page bootstrap, so it is free once anything else has run.
+func (c *Client) CurrentProfile() (Profile, error) {
+	ctx, err := c.context()
+	if err != nil {
+		return Profile{}, err
+	}
+	if ctx.Profile.GUID == "" {
+		return Profile{}, fmt.Errorf("netflix did not say which profile this session is using")
+	}
+	return ctx.Profile, nil
+}
+
 // Profiles lists the account's profiles, marking the one the session is
 // currently acting as. They are read out of the page bootstrap, so this costs
 // one request.
@@ -37,8 +50,20 @@ func (c *Client) Profiles() ([]Profile, error) {
 	return cache.profiles(), nil
 }
 
+// currentProfile is the profile the session is acting as.
+func (c apolloCache) currentProfile() Profile {
+	entity := c.deref(field(c["ROOT_QUERY"], "currentProfile"))
+	isKids, _ := field(entity, "isKids").(bool)
+	return Profile{
+		GUID:    fieldString(entity, "guid"),
+		Name:    strings.TrimSpace(fieldString(entity, "name")),
+		IsKids:  isKids,
+		Current: true,
+	}
+}
+
 func (c apolloCache) profiles() []Profile {
-	current := fieldString(c.deref(field(c["ROOT_QUERY"], "currentProfile")), "guid")
+	current := c.currentProfile().GUID
 	refs, _ := field(c.deref(field(c["ROOT_QUERY"], "account")), "profiles").([]any)
 	profiles := make([]Profile, 0, len(refs))
 	for _, ref := range refs {

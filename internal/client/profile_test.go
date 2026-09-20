@@ -38,3 +38,23 @@ func TestApolloCacheProfiles(t *testing.T) {
 		t.Errorf("kids=%v pinLocked=%v, want both true", kid, locked)
 	}
 }
+
+func TestApolloCacheCurrentProfile(t *testing.T) {
+	cache, err := parseApolloCache(pageWithProfiles)
+	if err != nil {
+		t.Fatalf("parseApolloCache: %v", err)
+	}
+	got := cache.currentProfile()
+	if got.GUID != "BBB" || got.Name != "Grace" || !got.Current {
+		t.Errorf("currentProfile = %+v, want the trimmed BBB marked current", got)
+	}
+}
+
+// The account guid in the page bootstrap is not the profile guid; anything that
+// asks "which profile?" has to read the profile cache instead.
+func TestCurrentProfileIsEmptyWithoutACache(t *testing.T) {
+	var cache apolloCache
+	if got := cache.currentProfile(); got.GUID != "" {
+		t.Errorf("currentProfile = %+v, want the zero value", got)
+	}
+}

@@ -3,22 +3,20 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"regexp"
-	"strings"
 )
 
-// shaktiContext is what the CLI needs out of the page bootstrap: the Shakti
-// build id (part of the API path) and the authURL token every write and
-// pathEvaluator call must echo back.
+// shaktiContext is what the CLI needs out of the page bootstrap: the build the
+// persisted queries belong to, where to find them, and who the session is.
 type shaktiContext struct {
 	BuildID   string
-	AuthURL   string
 	BundleURL string // Akira client bundle, where the persisted query ids live
 	User      UserInfo
+	Profile   Profile // the profile the session is acting as
 }
 
-// UserInfo is the account summary Netflix embeds in every page.
+// UserInfo is the account summary Netflix embeds in every page. GUID identifies
+// the account, not the profile — the profile is a separate id (see Profile).
 type UserInfo struct {
 	Name             string `json:"name"`
 	AccountOwnerName string `json:"accountOwnerName"`
@@ -55,10 +53,7 @@ func parseReactContext(html string) (*shaktiContext, error) {
 				} `json:"data"`
 			} `json:"serverDefs"`
 			UserInfo struct {
-				Data struct {
-					UserInfo
-					AuthURL string `json:"authURL"`
-				} `json:"data"`
+				Data UserInfo `json:"data"`
 			} `json:"userInfo"`
 		} `json:"models"`
 	}
@@ -71,9 +66,8 @@ func parseReactContext(html string) (*shaktiContext, error) {
 	}
 	return &shaktiContext{
 		BuildID:   build,
-		AuthURL:   ctx.Models.UserInfo.Data.AuthURL,
 		BundleURL: bundleURLRe.FindString(html),
-		User:      ctx.Models.UserInfo.Data.UserInfo,
+		User:      ctx.Models.UserInfo.Data,
 	}, nil
 }
 
@@ -94,6 +88,11 @@ func (c *Client) context() (*shaktiContext, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The same page carries the profile cache, so the active profile costs no
+	// extra request.
+	if cache, cacheErr := parseApolloCache(html); cacheErr == nil {
+		ctx.Profile = cache.currentProfile()
+	}
 	c.ctx = ctx
 	return ctx, nil
 }
@@ -108,40 +107,4 @@ func (c *Client) Whoami() (UserInfo, error) {
 		return ctx.User, fmt.Errorf("the session is not signed in (membership status %q) — re-import cookies with `netflix login --from-browser chrome`", ctx.User.MembershipStatus)
 	}
 	return ctx.User, nil
-}
-
-// PathEvaluator issues a Falcor query against Shakti, the same API the web app
-// uses. Each path is a Falcor path, e.g.
-// ["profilesList", {"from":0,"to":4}, ["summary"]].
-func (c *Client) PathEvaluator(paths ...any) (json.RawMessage, error) {
-	ctx, err := c.context()
-	if err != nil {
-		return nil, err
-	}
-	form := url.Values{}
-	for _, p := range paths {
-		raw, err := json.Marshal(p)
-		if err != nil {
-			return nil, fmt.Errorf("encode falcor path: %w", err)
-		}
-		form.Add("path", string(raw))
-	}
-	form.Set("authURL", ctx.AuthURL)
-	endpoint := fmt.Sprintf("%s/api/shakti/%s/pathEvaluator?method=get&falcor_server=0.1.0", c.BaseURL, url.PathEscape(ctx.BuildID))
-	if c.Profile != "" {
-		endpoint += "&profileGuid=" + url.QueryEscape(c.Profile)
-	}
-	req, err := c.newReq("POST", endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	req.Header.Set("accept", "application/json, text/javascript, */*")
-	req.Header.Set("x-netflix.client.request.name", "ui/falcorUnclassified")
-	req.Header.Set("x-requested-with", "XMLHttpRequest")
-	data, err := c.do(req)
-	if err != nil {
-		return nil, err
-	}
-	return json.RawMessage(data), nil
 }

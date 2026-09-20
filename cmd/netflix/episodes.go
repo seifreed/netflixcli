@@ -15,7 +15,10 @@ func cmdSeasons(args []string) error {
 	if err != nil {
 		return err
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	seasons, err := cl.Seasons(id)
 	if err != nil {
 		return err
@@ -41,7 +44,10 @@ func cmdEpisodes(args []string) error {
 	if err != nil {
 		return err
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	seasons, err := cl.Seasons(id)
 	if err != nil {
 		return err

@@ -13,7 +13,10 @@ import (
 func cmdProfiles(args []string) error {
 	fs, cf := newCommonFlags("profiles")
 	parseFlags(fs, args)
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	profiles, err := cl.Profiles()
 	if err != nil {
 		return err
@@ -51,7 +54,10 @@ func cmdProfileUse(args []string) error {
 	if want == "" {
 		return fmt.Errorf("usage: netflix profile use <name|guid>")
 	}
-	cl := newClient(cf)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
 	profile, updated, err := cl.UseProfile(want)
 	if err != nil {
 		return err
@@ -77,22 +83,18 @@ func cmdProfile(args []string) error {
 	return cmdProfiles(args)
 }
 
-// cmdHistory prints the profile's viewing activity.
+// cmdHistory prints the viewing activity of the profile the session is acting
+// as — another one with --profile.
 func cmdHistory(args []string) error {
 	fs, cf := newCommonFlags("history")
 	limit := fs.Int("limit", 0, "max entries to return (0 = all)")
 	asCSV := fs.Bool("csv", false, "emit CSV instead of a table")
 	parseFlags(fs, args)
-	cl := newClient(cf)
-	guid := ""
-	if cf.profile != "" {
-		profile, err := cl.ResolveProfile(cf.profile)
-		if err != nil {
-			return err
-		}
-		guid = profile.GUID
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
 	}
-	viewings, err := cl.History(guid)
+	viewings, err := cl.History("")
 	if err != nil {
 		return err
 	}

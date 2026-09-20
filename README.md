@@ -60,8 +60,9 @@ These change the profile's account state:
 | `netflix profile use <name\|guid>` | re-point the stored session at another profile |
 | `netflix history` | this profile's viewing activity, newest first (`--limit N`, `--csv`) |
 
-`history` accepts `--profile <name>` to read another profile's activity without
-switching to it.
+`--profile <name>` works on **every** command: it acts as that profile for that
+one invocation, leaving the stored session where it was. `profile use` is what
+changes it for good.
 
 ## Session
 
