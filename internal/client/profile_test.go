@@ -225,3 +225,30 @@ func TestResolveProfileNamesTheOnesItHas(t *testing.T) {
 		t.Errorf("ResolveProfile by guid = %+v, %v", byGUID, err)
 	}
 }
+
+// A session imported from a HAR or seeded with `set-cookie` keeps the browser's
+// cookie order, which is not the sorted one Merge returns. Comparing the merged
+// header against the raw one found a difference even when Netflix had changed
+// nothing, so a refused switch was reported as a successful one.
+func TestUseProfileDetectsARefusedSwitchWhateverTheCookieOrder(t *testing.T) {
+	for _, stored := range []string{
+		"NetflixId=y; nfvdid=x", // already sorted
+		"nfvdid=x; NetflixId=y", // as a browser sends it
+		"  nfvdid=x ;  NetflixId=y  ",
+	} {
+		c, _, _ := memberStub(t, nil) // /SwitchProfile answers without a cookie
+		c.Cookie = stored
+
+		_, _, err := c.Account.UseProfile("Kid")
+		if err == nil {
+			t.Errorf("stored %q: a refused switch was reported as done", stored)
+			continue
+		}
+		if !strings.Contains(err.Error(), "did not switch") {
+			t.Errorf("stored %q: error %q does not say the switch was refused", stored, err)
+		}
+		if c.Cookie != stored {
+			t.Errorf("stored %q: a refused switch rewrote the session to %q", stored, c.Cookie)
+		}
+	}
+}

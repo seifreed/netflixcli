@@ -99,3 +99,29 @@ func TestSurfacePath(t *testing.T) {
 		}
 	}
 }
+
+// A page can key the same field under more than one set of arguments. Ranging
+// over the map picked between them by iteration order, so the same page could
+// answer differently from one run to the next.
+func TestFieldPicksTheSameVariantEveryTime(t *testing.T) {
+	obj := map[string]any{
+		`sections({"first":8})`:       "eight",
+		`sections({"first":20})`:      "twenty",
+		`sections({"first":40})`:      "forty",
+		`sectionsOther({"first":99})`: "unrelated",
+	}
+	first, _ := field(obj, "sections").(string)
+	if first == "" {
+		t.Fatal("field found no variant at all")
+	}
+	for i := 0; i < 1000; i++ {
+		if got, _ := field(obj, "sections").(string); got != first {
+			t.Fatalf("field returned %q then %q for the same object", first, got)
+		}
+	}
+	// An exact key still wins over any argument-keyed variant.
+	obj["sections"] = "exact"
+	if got, _ := field(obj, "sections").(string); got != "exact" {
+		t.Errorf("field = %q, want the exact key to win", got)
+	}
+}

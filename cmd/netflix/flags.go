@@ -53,12 +53,19 @@ func newOutputFlags(name string) (*flag.FlagSet, *common) {
 // With --profile (or a configured default) it acts as that profile for this
 // invocation only: the switch happens in memory and the stored session keeps
 // pointing where it did. `profile use` is what changes it for good.
+// baseURL is the page host the CLI talks to: the public site, unless
+// NETFLIX_BASE_URL points at a debugging proxy or a mock.
+func baseURL() string {
+	if u := os.Getenv("NETFLIX_BASE_URL"); u != "" {
+		return u
+	}
+	return client.BaseURL
+}
+
 func newClient(c *common) (*client.Client, error) {
 	cl := client.New()
 	cl.Logf = stderrLogf
-	if u := os.Getenv("NETFLIX_BASE_URL"); u != "" {
-		cl.BaseURL = u
-	}
+	cl.BaseURL = baseURL()
 	if u := os.Getenv("NETFLIX_GRAPHQL_URL"); u != "" {
 		cl.GraphQLURL = u
 	}

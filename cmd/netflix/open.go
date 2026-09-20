@@ -17,22 +17,25 @@ func cmdOpen(args []string) error {
 	if err != nil {
 		return err
 	}
-	cl, err := newClient(cf)
-	if err != nil {
-		return err
-	}
 	page := "title"
 	if *watch {
 		page = "watch"
 	}
-	target := fmt.Sprintf("%s/%s/%d", strings.TrimRight(cl.BaseURL, "/"), page, id)
-	if err := launchBrowser(target); err != nil {
+	// Handing a URL to the browser needs no session: building a client here also
+	// bootstrapped it and switched profile when one is configured, so `open`
+	// failed on a stale cookie it was never going to use.
+	target := fmt.Sprintf("%s/%s/%d", strings.TrimRight(baseURL(), "/"), page, id)
+	if err := launch(target); err != nil {
 		return fmt.Errorf("open title: %w", err)
 	}
 	return output(cf, map[string]any{"opened": true, "url": target}, func() {
 		fmt.Println(target)
 	})
 }
+
+// launch hands a URL to the system browser. It is a variable so a test can run
+// `open` end to end without a browser appearing.
+var launch = launchBrowser
 
 func launchBrowser(target string) error {
 	switch runtime.GOOS {

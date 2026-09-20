@@ -128,8 +128,13 @@ func (s *Account) UseProfile(nameOrGUID string) (Profile, string, error) {
 		return profile, "", err
 	}
 	defer resp.Body.Close()
+	// Both sides are normalised before they are compared. Merge sorts what it
+	// returns, while the stored header is in whatever order it arrived in — a
+	// HAR import or `set-cookie` keeps the browser's — so comparing the result
+	// against the raw header found a difference even when nothing had changed,
+	// and a refused switch was reported as a successful one.
 	updated := cookie.Merge(s.client.Cookie, resp.Cookies())
-	if updated == s.client.Cookie {
+	if updated == cookie.Header(cookie.Parse(s.client.Cookie)) {
 		return profile, "", fmt.Errorf("netflix did not switch to %q (HTTP %d)", profile.Name, resp.StatusCode)
 	}
 	s.client.Cookie = updated

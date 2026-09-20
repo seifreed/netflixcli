@@ -76,6 +76,11 @@ func (c apolloCache) deref(v any) map[string]any {
 
 // field reads a cache field by name. Apollo keys a field that takes arguments as
 // `name({…})`, so an exact match is tried first and a prefix match second.
+//
+// A page can carry more than one argument variant of the same field. Ranging
+// over the map would pick between them by iteration order, so the same page
+// could answer differently run to run; the lowest key wins instead, which is
+// arbitrary but stable.
 func field(obj map[string]any, name string) any {
 	if obj == nil {
 		return nil
@@ -83,12 +88,17 @@ func field(obj map[string]any, name string) any {
 	if v, ok := obj[name]; ok {
 		return v
 	}
-	for k, v := range obj {
-		if strings.HasPrefix(k, name+"(") {
-			return v
+	prefix := name + "("
+	chosen := ""
+	for k := range obj {
+		if strings.HasPrefix(k, prefix) && (chosen == "" || k < chosen) {
+			chosen = k
 		}
 	}
-	return nil
+	if chosen == "" {
+		return nil
+	}
+	return obj[chosen]
 }
 
 func fieldString(obj map[string]any, name string) string {
