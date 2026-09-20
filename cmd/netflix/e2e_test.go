@@ -206,15 +206,27 @@ func stubGateway(t *testing.T, responses map[string]string) {
 	t.Cleanup(srv.Close)
 	t.Setenv("NETFLIX_GRAPHQL_URL", srv.URL)
 
-	manifest := `{"build":"v1a09dd61","version":102,"ops":{` +
-		`"SearchPageQueryResults":"11111111-1111-1111-1111-111111111111",` +
-		`"GetGenreSubgenres":"22222222-2222-2222-2222-222222222222",` +
-		`"DetailModal":"33333333-3333-3333-3333-333333333333"}}`
+	manifest := `{"build":"v1a09dd61","version":102,"ops":` + stubQueryIDs + `}`
 	path := filepath.Join(os.Getenv("NETFLIX_CONFIG_DIR"), "queries.json")
 	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
 		t.Fatalf("seed query manifest: %v", err)
 	}
 }
+
+// stubQueryIDs stands in for the map a real run scrapes from the client bundle
+// and caches; the ids themselves are never checked by the stub gateway.
+const stubQueryIDs = `{
+	"SearchPageQueryResults":"11111111-1111-1111-1111-111111111111",
+	"GetGenreSubgenres":"22222222-2222-2222-2222-222222222222",
+	"DetailModal":"33333333-3333-3333-3333-333333333333",
+	"PreviewModalEpisodeSelector":"44444444-4444-4444-4444-444444444444",
+	"PreviewModalEpisodeSelectorSeasonEpisodes":"55555555-5555-5555-5555-555555555555",
+	"AddToPlaylist":"66666666-6666-6666-6666-666666666666",
+	"RemoveFromPlaylist":"77777777-7777-7777-7777-777777777777",
+	"SetEntityThumbRating":"88888888-8888-8888-8888-888888888888",
+	"RemoveFromContinueWatching":"99999999-9999-9999-9999-999999999999",
+	"AddReminder":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+}`
 
 func TestSearchRendersResults(t *testing.T) {
 	stubNetflix(t)
@@ -308,4 +320,202 @@ func TestTitleRejectsAnOperandThatIsNotAnID(t *testing.T) {
 	if code != exitError {
 		t.Errorf("exit code = %d, want %d", code, exitError)
 	}
+}
+
+func TestSeasonsAndEpisodes(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"PreviewModalEpisodeSelector": `{"data":{"videos":[{"__typename":"Show","videoId":80100172,
+			"seasons":{"edges":[{"node":{"videoId":80114789,"number":1,"title":"Temporada 1",
+				"episodes":{"totalCount":10},"contentAdvisory":{"certificationValue":"16+"}}}]}}]}}`,
+		"PreviewModalEpisodeSelectorSeasonEpisodes": `{"data":{"videos":[{"episodes":{"edges":[
+			{"node":{"videoId":80114790,"number":1,"title":"Secretos","runtimeSec":3091,
+				"isPlayable":true,"contextualSynopsis":{"text":"Un pueblo alemán."}}}]}}]}}`,
+	})
+	code, out := runCommand(t, "seasons", "80100172")
+	if code != exitOK {
+		t.Fatalf("seasons exit code = %d", code)
+	}
+	if !strings.Contains(out, "Temporada 1") || !strings.Contains(out, "10 episodes") {
+		t.Errorf("seasons output %q is missing the season", out)
+	}
+
+	code, out = runCommand(t, "episodes", "80100172")
+	if code != exitOK {
+		t.Fatalf("episodes exit code = %d", code)
+	}
+	for _, want := range []string{"Secretos", "51m", "Un pueblo alemán."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("episodes output %q is missing %q", out, want)
+		}
+	}
+}
+
+// Asking for episodes of a movie must say so rather than print an empty list.
+func TestEpisodesOfAMovieExplainsItself(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"PreviewModalEpisodeSelector": `{"data":{"videos":[{"__typename":"Movie","videoId":70095139,"seasons":{"edges":[]}}]}}`,
+	})
+	code, _ := runCommand(t, "episodes", "70095139")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d for a movie", code, exitError)
+	}
+}
+
+func TestMyListAddAndRemoveReportTheResultingState(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"AddToPlaylist": `{"data":{"addEntityToPlaylist":{"entity":
+			{"videoId":80100172,"title":"Dark","isInPlaylist":true}}}}`,
+		"RemoveFromPlaylist": `{"data":{"removeEntityFromPlaylist":{"entity":
+			{"videoId":80100172,"title":"Dark","isInPlaylist":false}}}}`,
+	})
+	code, out := runCommand(t, "mylist", "add", "80100172")
+	if code != exitOK || !strings.Contains(out, "Dark is in My List") {
+		t.Errorf("add: code=%d out=%q", code, out)
+	}
+	code, out = runCommand(t, "mylist", "remove", "80100172")
+	if code != exitOK || !strings.Contains(out, "no longer in My List") {
+		t.Errorf("remove: code=%d out=%q", code, out)
+	}
+}
+
+// Netflix reports some refusals inside a 200 payload; a write must not report
+// success when that happens.
+func TestARefusedWriteFails(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"SetEntityThumbRating": `{"data":{"setEntityThumbRating":{"entity":{},"errors":[{"message":"not allowed"}]}}}`,
+	})
+	code, out := runCommand(t, "rate", "80100172", "up")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d when Netflix refuses", code, exitError)
+	}
+	if strings.Contains(out, "thumbs up") {
+		t.Errorf("output %q claims the rating was set", out)
+	}
+}
+
+func TestRateRejectsAnUnknownRating(t *testing.T) {
+	stubNetflix(t)
+	code, _ := runCommand(t, "rate", "80100172", "sideways")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d", code, exitError)
+	}
+}
+
+func TestContinueRemove(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"RemoveFromContinueWatching": `{"data":{"removeFromContinueWatching":{"success":true}}}`,
+	})
+	code, out := runCommand(t, "continue", "remove", "80100172")
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	if !strings.Contains(out, "no longer in Continue Watching") {
+		t.Errorf("output %q does not confirm the removal", out)
+	}
+}
+
+func TestContinueRemoveReportsAFailedRemoval(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"RemoveFromContinueWatching": `{"data":{"removeFromContinueWatching":{"success":false}}}`,
+	})
+	code, _ := runCommand(t, "continue", "remove", "80100172")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d when Netflix reports no success", code, exitError)
+	}
+}
+
+// A reminder on an already-available title lands in My List instead; the
+// command must report both flags rather than claim a reminder was set.
+func TestRemindReportsBothFlags(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"AddReminder": `{"data":{"addUnifiedEntityToRemindMe":
+			{"videoId":80100172,"isInRemindMeList":true,"isInPlaylist":true}}}`,
+	})
+	code, out := runCommand(t, "remind", "add", "80100172")
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	if !strings.Contains(out, "reminder: yes") || !strings.Contains(out, "My List: yes") {
+		t.Errorf("output %q does not report both flags", out)
+	}
+	if strings.Contains(out, "will remind you") {
+		t.Errorf("output %q narrates a reminder it cannot vouch for", out)
+	}
+}
+
+func TestRemindNeedsASubcommand(t *testing.T) {
+	stubNetflix(t)
+	code, _ := runCommand(t, "remind", "80100172")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d without add|remove", code, exitError)
+	}
+}
+
+// The session commands write the file every later command reads, so what lands
+// on disk matters as much as what is printed.
+func TestSetCookieStoresTheSession(t *testing.T) {
+	stubNetflix(t)
+	code, _ := runCommand(t, "set-cookie", "NetflixId=fresh; nfvdid=x")
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	stored := readSession(t)
+	if !strings.Contains(stored, "NetflixId=fresh") {
+		t.Errorf("stored session %q does not carry the cookie", stored)
+	}
+}
+
+func TestSetCookieRejectsAnEmptyCookie(t *testing.T) {
+	stubNetflix(t)
+	code, _ := runCommand(t, "set-cookie")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d", code, exitError)
+	}
+}
+
+func TestImportHarTakesTheSignedInRequest(t *testing.T) {
+	stubNetflix(t)
+	har := `{"log":{"entries":[
+		{"request":{"url":"https://evil.example/","headers":[{"name":"Cookie","value":"NetflixId=stolen"}]}},
+		{"request":{"url":"https://www.netflix.com/browse","headers":[{"name":"Cookie","value":"NetflixId=mine"}]}}
+	]}}`
+	path := filepath.Join(t.TempDir(), "netflix.har")
+	if err := os.WriteFile(path, []byte(har), 0o600); err != nil {
+		t.Fatalf("write har: %v", err)
+	}
+	code, _ := runCommand(t, "import-har", "--file", path)
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	stored := readSession(t)
+	if !strings.Contains(stored, "NetflixId=mine") {
+		t.Errorf("stored session %q did not take the Netflix request's cookie", stored)
+	}
+	if strings.Contains(stored, "stolen") {
+		t.Error("import-har took a cookie belonging to another site")
+	}
+}
+
+func TestImportHarNeedsAFile(t *testing.T) {
+	stubNetflix(t)
+	code, _ := runCommand(t, "import-har")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d", code, exitError)
+	}
+}
+
+func readSession(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(os.Getenv("NETFLIX_CONFIG_DIR"), "session.json"))
+	if err != nil {
+		t.Fatalf("read session: %v", err)
+	}
+	return string(raw)
 }
