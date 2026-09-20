@@ -8,6 +8,11 @@ on:
 # Least privilege by default; the security job raises only what it needs.
 # No step consumes event input (titles, branch names, commit messages), so
 # there is no injection surface here.
+#
+# Actions are pinned to a commit, not a tag: a tag can be moved, and a moved tag
+# runs somebody else's code with this workflow's token. The comment after each
+# one is the tag it was resolved from, and dependabot.yml keeps them current —
+# the same rule the Makefile applies to the tools it pins.
 permissions:
   contents: read
 
@@ -16,8 +21,8 @@ jobs:
     name: quality gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache: true
@@ -32,10 +37,10 @@ jobs:
       contents: read
       security-events: write # upload-sarif
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # gitleaks scans history, not just the tip
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache: true
@@ -56,7 +61,7 @@ jobs:
 
       - name: Upload SARIF
         if: always() && hashFiles('golangci-lint.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@3ea06614dafe36dec890db3446326e0d40ce53d4 # v3
         with:
           sarif_file: golangci-lint.sarif
           category: golangci-lint
