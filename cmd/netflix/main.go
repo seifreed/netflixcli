@@ -12,8 +12,7 @@ package main
 import (
 	"fmt"
 	"os"
-
-	"github.com/seifreed/netflixcli/internal/config"
+	"strings"
 )
 
 // Build metadata, injected at release time via -ldflags.
@@ -45,13 +44,17 @@ func run(args []string) int {
 		fmt.Fprint(os.Stderr, usageText())
 		return exitOK
 	}
-	cmd, ok := lookup(args[0])
+	cmd, rest, ok := lookup(args)
 	if !ok {
+		if subs := subcommandsOf(args[0]); len(subs) > 0 {
+			fmt.Fprintf(os.Stderr, "usage: netflix %s %s <id|url>\n", args[0], strings.Join(subs, "|"))
+			return exitUsage
+		}
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", args[0])
 		fmt.Fprint(os.Stderr, usageText())
 		return exitUsage
 	}
-	if err := cmd.run(args[1:]); err != nil {
+	if err := cmd.run(rest); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return exitError
 	}
@@ -67,5 +70,3 @@ func versionString() string {
 	}
 	return fmt.Sprintf("%s (%s)", version, commit)
 }
-
-func configDirLabel() string { return config.Dir() }

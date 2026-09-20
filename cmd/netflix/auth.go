@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/seifreed/netflixcli/internal/client"
+	"github.com/seifreed/netflixcli/internal/config"
 	"github.com/seifreed/netflixcli/internal/cookie"
 	"github.com/seifreed/netflixcli/internal/session"
 )
@@ -25,7 +26,7 @@ func cmdLogin(args []string) error {
 	if err := session.SaveSession(s); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "saved session cookie (%d bytes) → %s/session.json\n", len(s.Cookie), configDirLabel())
+	fmt.Fprintf(os.Stderr, "saved session cookie (%d bytes) → %s/session.json\n", len(s.Cookie), config.Dir())
 	if !cookie.LooksAuthenticated(s.Cookie) {
 		stderrLogf("cookie carries no NetflixId — sign in to www.netflix.com in that browser, then re-run")
 	}
@@ -70,7 +71,7 @@ func cmdImportHar(args []string) error {
 	if err := session.SaveSession(s); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "imported session cookie (%d bytes) → %s/session.json\n", len(s.Cookie), configDirLabel())
+	fmt.Fprintf(os.Stderr, "imported session cookie (%d bytes) → %s/session.json\n", len(s.Cookie), config.Dir())
 	return emitSavedSession(cf, s)
 }
 
@@ -100,7 +101,7 @@ func cmdSetCookie(args []string) error {
 	if err := session.SaveSession(s); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "saved cookie → %s/session.json\n", configDirLabel())
+	fmt.Fprintf(os.Stderr, "saved cookie → %s/session.json\n", config.Dir())
 	if !cookie.LooksAuthenticated(rawCookie) {
 		stderrLogf("cookie has no NetflixId entry — run `netflix whoami` to check whether it is accepted")
 	}

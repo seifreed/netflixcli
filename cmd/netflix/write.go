@@ -90,21 +90,21 @@ func cmdContinueRemove(args []string) error {
 	})
 }
 
-// cmdRemind manages release reminders for titles that are not out yet.
-func cmdRemind(args []string) error {
-	verb := ""
-	if len(args) > 0 {
-		verb, args = args[0], args[1:]
-	}
-	var change func(*client.Client, int) (client.EntityState, error)
-	switch verb {
-	case "add":
-		change = func(cl *client.Client, id int) (client.EntityState, error) { return cl.Library.AddReminder(id) }
-	case "remove", "rm":
-		change = func(cl *client.Client, id int) (client.EntityState, error) { return cl.Library.RemoveReminder(id) }
-	default:
-		return fmt.Errorf("usage: netflix remind add|remove <id|url>")
-	}
+// cmdRemindAdd asks Netflix to remind this profile when a title arrives.
+func cmdRemindAdd(args []string) error {
+	return remindChange(args, "add", func(cl *client.Client, id int) (client.EntityState, error) {
+		return cl.Library.AddReminder(id)
+	})
+}
+
+// cmdRemindRemove drops a title's release reminder.
+func cmdRemindRemove(args []string) error {
+	return remindChange(args, "remove", func(cl *client.Client, id int) (client.EntityState, error) {
+		return cl.Library.RemoveReminder(id)
+	})
+}
+
+func remindChange(args []string, verb string, change func(*client.Client, int) (client.EntityState, error)) error {
 	fs, cf := newCommonFlags("remind " + verb)
 	parseFlags(fs, args)
 	id, err := titleOperand(fs, fmt.Sprintf("netflix remind %s <id|url>", verb))
@@ -134,26 +134,4 @@ func yesNo(b bool) string {
 		return "yes"
 	}
 	return "no"
-}
-
-// runMyList and runContinue exist because `mylist` and `continue` are both a
-// listing and the entry point to a write; the command table documents each
-// subcommand on its own row.
-func runMyList(args []string) error {
-	if len(args) > 0 {
-		switch args[0] {
-		case "add":
-			return cmdMyListAdd(args[1:])
-		case "remove", "rm":
-			return cmdMyListRemove(args[1:])
-		}
-	}
-	return cmdFeed(client.FeedMyList)(args)
-}
-
-func runContinue(args []string) error {
-	if len(args) > 0 && (args[0] == "remove" || args[0] == "rm") {
-		return cmdContinueRemove(args[1:])
-	}
-	return cmdFeed(client.FeedContinueWatching)(args)
 }

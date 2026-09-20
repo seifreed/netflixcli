@@ -71,14 +71,3 @@ func cmdProfileUse(args []string) error {
 		fmt.Fprintf(os.Stderr, "session now acts as %q\n", profile.Name)
 	})
 }
-
-// cmdProfile dispatches the profile subcommands.
-func cmdProfile(args []string) error {
-	if len(args) > 0 && args[0] == "use" {
-		return cmdProfileUse(args[1:])
-	}
-	if len(args) > 0 && args[0] == "list" {
-		return cmdProfiles(args[1:])
-	}
-	return cmdProfiles(args)
-}

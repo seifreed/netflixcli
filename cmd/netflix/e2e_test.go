@@ -451,11 +451,13 @@ func TestRemindReportsBothFlags(t *testing.T) {
 	}
 }
 
+// A bare parent is a wrong invocation, not a failed command. What it prints is
+// asserted in TestParentCommandsNameTheirSubcommands, since it goes to stderr.
 func TestRemindNeedsASubcommand(t *testing.T) {
 	stubNetflix(t)
 	code, _ := runCommand(t, "remind", "80100172")
-	if code != exitError {
-		t.Errorf("exit code = %d, want %d without add|remove", code, exitError)
+	if code != exitUsage {
+		t.Errorf("exit code = %d, want %d without add|remove", code, exitUsage)
 	}
 }
 

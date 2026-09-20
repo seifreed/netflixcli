@@ -10,52 +10,74 @@ import (
 func TestEveryDispatchableCommandIsDocumented(t *testing.T) {
 	text := usageText()
 	for _, c := range commands() {
-		if c.run == nil || c.name == "profile" {
-			continue
-		}
 		if !strings.Contains(text, c.name) {
 			t.Errorf("command %q is dispatchable but absent from the help", c.name)
 		}
 	}
 }
 
+// Every documented row must dispatch to itself — including a subcommand row,
+// which once documented a name that only its parent's hand-written switch knew
+// how to reach.
 func TestEveryDocumentedCommandResolves(t *testing.T) {
 	for _, c := range helpRows() {
-		// A help row for a subcommand documents "parent sub"; the parent is what
-		// dispatches.
-		name := c.name
-		if parent, _, isSub := strings.Cut(name, " "); isSub {
-			name = parent
+		if c.run == nil {
+			t.Errorf("help documents %q but the row has no run func", c.name)
+			continue
 		}
-		if _, ok := lookup(name); !ok {
-			t.Errorf("help documents %q but no command dispatches %q", c.name, name)
+		got, rest, ok := lookup(strings.Fields(c.name))
+		if !ok {
+			t.Errorf("help documents %q but nothing dispatches it", c.name)
+			continue
+		}
+		if got.name != c.name {
+			t.Errorf("%q dispatches to %q instead of itself", c.name, got.name)
+		}
+		if len(rest) != 0 {
+			t.Errorf("%q left %v unconsumed", c.name, rest)
 		}
 	}
 }
 
-func TestLookupResolvesAliases(t *testing.T) {
-	for name, want := range map[string]string{
-		"mylist":            "mylist",
-		"my-list":           "mylist",
-		"continue":          "continue",
-		"continue-watching": "continue",
+// The longest spelling wins, so a parent row and its subcommands coexist.
+func TestLookupTakesTheLongestSpelling(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+		rest []string
+	}{
+		{[]string{"mylist"}, "mylist", nil},
+		{[]string{"my-list", "--json"}, "mylist", []string{"--json"}},
+		{[]string{"mylist", "add", "123"}, "mylist add", []string{"123"}},
+		{[]string{"mylist", "rm", "123"}, "mylist remove", []string{"123"}},
+		{[]string{"continue"}, "continue", nil},
+		{[]string{"continue-watching"}, "continue", nil},
+		{[]string{"continue", "remove", "9"}, "continue remove", []string{"9"}},
+		{[]string{"remind", "add", "9"}, "remind add", []string{"9"}},
+		{[]string{"profile"}, "profiles", nil},
+		{[]string{"profile", "list"}, "profiles", nil},
+		{[]string{"profile", "use", "kids"}, "profile use", []string{"kids"}},
+		// A flag or operand that happens to follow must not be eaten as a
+		// subcommand of a command that has none.
+		{[]string{"search", "add"}, "search", []string{"add"}},
 	} {
-		got, ok := lookup(name)
+		got, rest, ok := lookup(tc.args)
 		if !ok {
-			t.Errorf("lookup(%q) found nothing", name)
+			t.Errorf("lookup(%v) found nothing", tc.args)
 			continue
 		}
-		if got.name != want {
-			t.Errorf("lookup(%q) = %q, want %q", name, got.name, want)
+		if got.name != tc.want {
+			t.Errorf("lookup(%v) = %q, want %q", tc.args, got.name, tc.want)
+		}
+		if strings.Join(rest, " ") != strings.Join(tc.rest, " ") {
+			t.Errorf("lookup(%v) left %v, want %v", tc.args, rest, tc.rest)
 		}
 	}
-	if _, ok := lookup("nonsense"); ok {
+	if _, _, ok := lookup([]string{"nonsense"}); ok {
 		t.Error("lookup resolved a command that does not exist")
 	}
-	// Help-only rows document a subcommand; they must not be dispatchable on
-	// their own, or `netflix "mylist add"` would look like a command.
-	if _, ok := lookup("mylist add"); ok {
-		t.Error("a help-only row must not be dispatchable")
+	if _, _, ok := lookup(nil); ok {
+		t.Error("lookup resolved something from no arguments")
 	}
 }
 
@@ -94,5 +116,21 @@ func TestCommandNamesAreUnique(t *testing.T) {
 			t.Errorf("%q is registered twice", name)
 		}
 		seen[name] = true
+	}
+}
+
+// `netflix remind` is not a command, but reporting it as unknown would be a lie.
+// The hint is read off the table, so a new subcommand appears in it for free.
+func TestParentCommandsNameTheirSubcommands(t *testing.T) {
+	for parent, want := range map[string]string{
+		"remind":   "add remove",
+		"mylist":   "add remove",
+		"continue": "remove",
+		"profile":  "use",
+		"search":   "",
+	} {
+		if got := strings.Join(subcommandsOf(parent), " "); got != want {
+			t.Errorf("subcommandsOf(%q) = %q, want %q", parent, got, want)
+		}
 	}
 }

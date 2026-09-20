@@ -12,14 +12,31 @@ import (
 // dispatches from it and `usage` renders from it. Help that is written out by
 // hand drifts from the dispatch — this CLI once documented two browse surfaces
 // that had been removed — and a table cannot drift from itself.
+//
+// A subcommand is a row like any other, named in full ("mylist add"). Dispatch
+// takes the longest matching name, so the parent row and its subcommands live
+// side by side without a hand-written switch between them.
 type command struct {
-	name    string
+	name    string // "search", or "mylist add" for a subcommand
 	aliases []string
 	group   group
 	args    string   // operand syntax shown after the name
 	summary string   // one line
 	detail  []string // extra help lines, usually flags
 	run     func([]string) error
+}
+
+// matches reports whether spelling names this command, by name or by alias.
+func (c command) matches(spelling string) bool {
+	if c.name == spelling {
+		return true
+	}
+	for _, alias := range c.aliases {
+		if alias == spelling {
+			return true
+		}
+	}
+	return false
 }
 
 // group orders the sections of the help text.
@@ -71,12 +88,12 @@ func commands() []command {
 		{
 			name: "mylist", aliases: []string{"my-list"}, group: groupRead,
 			summary: "titles saved in this profile's My List",
-			run:     runMyList,
+			run:     cmdFeed(client.FeedMyList),
 		},
 		{
 			name: "continue", aliases: []string{"continue-watching"}, group: groupRead,
 			summary: "titles this profile is part-way through",
-			run:     runContinue,
+			run:     cmdFeed(client.FeedContinueWatching),
 		},
 		{
 			name: "liked", group: groupRead,
@@ -118,10 +135,13 @@ func commands() []command {
 		{
 			name: "mylist add", group: groupWrite, args: "<id|url>",
 			summary: "save a title to My List",
+			run:     cmdMyListAdd,
 		},
 		{
-			name: "mylist remove", group: groupWrite, args: "<id|url>",
+			name: "mylist remove", aliases: []string{"mylist rm"},
+			group: groupWrite, args: "<id|url>",
 			summary: "drop a title from My List",
+			run:     cmdMyListRemove,
 		},
 		{
 			name: "rate", group: groupWrite, args: "<id|url> <rating>",
@@ -129,27 +149,37 @@ func commands() []command {
 			run:     cmdRate,
 		},
 		{
-			name: "continue remove", group: groupWrite, args: "<id>",
+			name: "continue remove", aliases: []string{"continue rm"},
+			group: groupWrite, args: "<id>",
 			summary: "drop a title from Continue Watching",
 			detail:  []string{"(the viewing history entry stays; not undoable)"},
+			run:     cmdContinueRemove,
 		},
 		{
-			name: "remind", group: groupWrite, args: "add|remove <id>",
+			name: "remind add", group: groupWrite, args: "<id|url>",
 			summary: "release reminder for a title that is not out yet",
 			detail: []string{
 				"(Netflix files an already-available title in My List",
 				"instead, and the reply says so)",
 			},
-			run: cmdRemind,
+			run: cmdRemindAdd,
 		},
 		{
-			name: "profiles", group: groupAccount,
+			name: "remind remove", aliases: []string{"remind rm"},
+			group: groupWrite, args: "<id|url>",
+			summary: "drop a title's release reminder",
+			run:     cmdRemindRemove,
+		},
+		{
+			name: "profiles", aliases: []string{"profile", "profile list"},
+			group:   groupAccount,
 			summary: "list the account's profiles (* marks the active one)",
 			run:     cmdProfiles,
 		},
 		{
 			name: "profile use", group: groupAccount, args: "<name|guid>",
 			summary: "re-point the stored session at another profile",
+			run:     cmdProfileUse,
 		},
 		{
 			name: "history", group: groupAccount,
@@ -181,43 +211,35 @@ func commands() []command {
 			summary: "show the account the current session belongs to",
 			run:     cmdWhoami,
 		},
-		// `profile` dispatches its own subcommands; the table documents them
-		// individually above, so this entry is hidden from the help.
-		{name: "profile", run: cmdProfile},
 	}
 }
 
-// lookup resolves a command name or alias. Entries with no run func are help-only
-// rows documenting a subcommand, and are never dispatched to.
-func lookup(name string) (command, bool) {
-	for _, c := range commands() {
-		if c.run == nil {
+// maxCommandWords bounds how many leading arguments can spell one command.
+// "mylist add" is two; no name or alias in the table is longer.
+const maxCommandWords = 2
+
+// lookup resolves the command spelled by the leading arguments and returns the
+// operands left after it. The longest spelling wins, so `mylist add 123`
+// reaches the subcommand while a bare `mylist` reaches the parent row.
+func lookup(args []string) (cmd command, rest []string, ok bool) {
+	table := commands()
+	for words := maxCommandWords; words >= 1; words-- {
+		if len(args) < words {
 			continue
 		}
-		if c.name == name {
-			return c, true
-		}
-		for _, alias := range c.aliases {
-			if alias == name {
-				return c, true
+		spelling := strings.Join(args[:words], " ")
+		for _, c := range table {
+			if c.matches(spelling) {
+				return c, args[words:], true
 			}
 		}
 	}
-	return command{}, false
+	return command{}, nil, false
 }
 
-// helpRows are the table entries the help lists, in table order. The bare
-// `profile` dispatcher is hidden: its subcommands are documented on their own.
-func helpRows() []command {
-	var rows []command
-	for _, c := range commands() {
-		if c.name == "profile" {
-			continue
-		}
-		rows = append(rows, c)
-	}
-	return rows
-}
+// helpRows are the table entries the help lists — every one of them, since each
+// row is dispatchable on its own.
+func helpRows() []command { return commands() }
 
 const (
 	helpIndent    = "  "
@@ -290,14 +312,25 @@ ENV:
   version | help
 `
 
+// subcommandsOf lists the subcommands spelled under name, so a parent that only
+// exists as a prefix — `netflix remind` — can say what it is missing instead of
+// reporting itself as unknown. It reads the table, so it cannot fall behind it.
+func subcommandsOf(name string) []string {
+	var subs []string
+	for _, c := range commands() {
+		if parent, sub, ok := strings.Cut(c.name, " "); ok && parent == name {
+			subs = append(subs, sub)
+		}
+	}
+	sort.Strings(subs)
+	return subs
+}
+
 // commandNames lists every dispatchable name and alias, for error messages and
 // tests.
 func commandNames() []string {
 	var names []string
 	for _, c := range commands() {
-		if c.run == nil {
-			continue
-		}
 		names = append(names, c.name)
 		names = append(names, c.aliases...)
 	}
