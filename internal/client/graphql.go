@@ -117,21 +117,21 @@ func (c *Client) locale() string {
 	return "es-ES"
 }
 
-func randomHex(n int) string {
+// randomBytes returns n cryptographically random bytes. crypto/rand.Read has
+// been documented never to fail since Go 1.24, so there is no error to handle
+// and both id generators below say so once, here.
+func randomBytes(n int) []byte {
 	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return strings.Repeat("0", n*2)
-	}
-	return hex.EncodeToString(b)
+	_, _ = rand.Read(b)
+	return b
 }
+
+func randomHex(n int) string { return hex.EncodeToString(randomBytes(n)) }
 
 // newUUID returns a random RFC 4122 v4 UUID. Netflix's search page groups the
 // queries of one typing session under such an id.
 func newUUID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "00000000-0000-4000-8000-000000000000"
-	}
+	b := randomBytes(16)
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])

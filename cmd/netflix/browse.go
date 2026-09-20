@@ -53,7 +53,7 @@ func cmdFeed(feed string) func([]string) error {
 		if err != nil {
 			return err
 		}
-		titles := capTitles(row.Titles, *limit)
+		titles := capped(row.Titles, *limit)
 		return output(cf, titles, func() {
 			if len(titles) == 0 {
 				fmt.Printf("(%s is empty for this profile)\n", row.Name)
@@ -82,25 +82,26 @@ func bullet(int) string { return "•" }
 
 func rank(i int) string { return fmt.Sprintf("%2d.", i+1) }
 
-// capRows caps every row's titles. Like capTitles it leaves the caller's rows
+// capRows caps every row's titles. Like capped it leaves the caller's rows
 // alone, so a capped view cannot be mistaken for the whole one.
 func capRows(rows []client.Row, limit int) []client.Row {
 	if limit <= 0 {
 		return rows
 	}
-	capped := make([]client.Row, len(rows))
+	out := make([]client.Row, len(rows))
 	for i, row := range rows {
-		row.Titles = capTitles(row.Titles, limit)
-		capped[i] = row
+		row.Titles = capped(row.Titles, limit)
+		out[i] = row
 	}
-	return capped
+	return out
 }
 
-func capTitles(titles []client.Title, limit int) []client.Title {
-	if limit > 0 && len(titles) > limit {
-		return titles[:limit]
+// capped applies --limit to anything the CLI lists. limit 0 means everything.
+func capped[T any](items []T, limit int) []T {
+	if limit > 0 && len(items) > limit {
+		return items[:limit]
 	}
-	return titles
+	return items
 }
 
 // cmdTop prints Netflix's top 10 rows. They are not in the page: they sit past

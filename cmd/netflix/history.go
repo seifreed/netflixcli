@@ -23,9 +23,7 @@ func cmdHistory(args []string) error {
 	if err != nil {
 		return err
 	}
-	if *limit > 0 && len(viewings) > *limit {
-		viewings = viewings[:*limit]
-	}
+	viewings = capped(viewings, *limit)
 	if *asCSV {
 		return emitViewingsCSV(viewings)
 	}
