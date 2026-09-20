@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 
 	toon "github.com/toon-format/toon-go"
 )
@@ -69,10 +70,24 @@ func emitTOON(v any) error {
 	return err
 }
 
+// listOrEmpty turns a nil slice into an empty one. Go marshals a nil slice as
+// `null`, and a command that found nothing returns one — so `search` with no
+// results answered `null` while `reminders` on an empty list answered `[]`. A
+// caller looping over the result should get no rows, not a type error.
+func listOrEmpty(v any) any {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Slice && rv.IsNil() {
+		return reflect.MakeSlice(rv.Type(), 0, 0).Interface()
+	}
+	return v
+}
+
 // output renders a command's result: the structured format the flags asked for,
 // or the human view when they asked for none. Every command ends in this call,
-// so the precedence between --toon, --jsonl and --json is decided in one place.
+// so the precedence between --toon, --jsonl and --json is decided in one place,
+// and so is what an empty result looks like.
 func output(cf *common, v any, human func()) error {
+	v = listOrEmpty(v)
 	switch {
 	case cf.toon:
 		return emitTOON(v)

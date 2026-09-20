@@ -81,3 +81,41 @@ func captureStdout(t *testing.T, fn func()) string {
 	}
 	return buf.String()
 }
+
+// A command that found nothing must answer with an empty list, not null: a
+// caller looping over the result should get no rows rather than a type error.
+// `search` returned a nil slice and so answered `null`, while `reminders` on an
+// empty list answered `[]`.
+func TestEmptyResultsAreAnEmptyList(t *testing.T) {
+	var noTitles []client.Title
+	for _, format := range []struct {
+		name string
+		cf   *common
+		want string
+	}{
+		{"--json", &common{jsonOut: true}, "[]\n"},
+		{"--jsonl", &common{jsonl: true}, ""},
+		{"--toon", &common{toon: true}, "[0]:\n"},
+	} {
+		out := captureStdout(t, func() {
+			if err := output(format.cf, noTitles, func() {}); err != nil {
+				t.Errorf("%s: %v", format.name, err)
+			}
+		})
+		if out != format.want {
+			t.Errorf("%s of no results = %q, want %q", format.name, out, format.want)
+		}
+	}
+}
+
+// A result that is not a list is untouched.
+func TestNonListResultsPassThrough(t *testing.T) {
+	out := captureStdout(t, func() {
+		if err := output(&common{jsonOut: true}, map[string]any{"removed": true}, func() {}); err != nil {
+			t.Error(err)
+		}
+	})
+	if !strings.Contains(out, `"removed": true`) {
+		t.Errorf("output = %q", out)
+	}
+}
