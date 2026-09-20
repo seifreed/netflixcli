@@ -71,8 +71,8 @@ func parseReactContext(html string) (*shaktiContext, error) {
 	}, nil
 }
 
-// context bootstraps (once per process) the build id and authURL by loading a
-// member page with the session cookie.
+// context bootstraps the page state once per process — the build, the client
+// bundle and who is signed in — by loading a member page with the cookie.
 func (c *Client) context() (*shaktiContext, error) {
 	if c.ctx != nil {
 		return c.ctx, nil

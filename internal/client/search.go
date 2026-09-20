@@ -35,19 +35,6 @@ func artworkParams() map[string]any {
 // DefaultSearchPageSize matches the web app's own page size.
 const DefaultSearchPageSize = 48
 
-// Title is one catalogue entry as the CLI reports it.
-type Title struct {
-	ID            int    `json:"id"`
-	Title         string `json:"title"`
-	Kind          string `json:"kind"` // Movie, Show, Game, …
-	URL           string `json:"url"`
-	MaturityLevel int    `json:"maturityLevel,omitempty"`
-	Artwork       string `json:"artwork,omitempty"`
-}
-
-// TitleURL is the canonical watch page for a Netflix video id.
-func TitleURL(id int) string { return fmt.Sprintf("%s/title/%d", BaseURL, id) }
-
 // Search queries the catalogue the way the web app's search page does, paging
 // the result gallery until it has limit titles or Netflix runs out. limit 0
 // returns the first page.
@@ -79,37 +66,53 @@ func (s *Catalog) Search(query string, limit int) ([]Title, error) {
 		return nil, nil
 	}
 
-	var titles []Title
-	seen := map[int]bool{}
-	appendPage := func(section pinotSection) int {
-		added := 0
-		for _, title := range section.titles() {
-			if seen[title.ID] {
-				continue
-			}
-			seen[title.ID] = true
-			titles = append(titles, title)
-			added++
-		}
-		return added
-	}
-	appendPage(gallery)
-
-	for limit > len(titles) && gallery.Entities.PageInfo.HasNextPage && gallery.ID != "" {
+	var results titleSet
+	results.add(gallery)
+	for limit > results.len() && gallery.Entities.PageInfo.HasNextPage && gallery.ID != "" {
 		next, err := s.searchPage(gallery.ID, gallery.Entities.PageInfo.EndCursor, pageSize)
 		if err != nil {
 			return nil, err
 		}
 		// A page that adds nothing new would otherwise loop for ever.
-		if appendPage(next) == 0 {
+		if results.add(next) == 0 {
 			break
 		}
 		gallery = next
 	}
-	if limit > 0 && len(titles) > limit {
-		titles = titles[:limit]
+	return results.capped(limit), nil
+}
+
+// titleSet collects paged results, dropping the repeats a shifting cursor can
+// hand back.
+type titleSet struct {
+	titles []Title
+	seen   map[int]bool
+}
+
+// add appends a page's titles and reports how many were new.
+func (t *titleSet) add(section pinotSection) int {
+	if t.seen == nil {
+		t.seen = map[int]bool{}
 	}
-	return titles, nil
+	added := 0
+	for _, title := range section.titles() {
+		if t.seen[title.ID] {
+			continue
+		}
+		t.seen[title.ID] = true
+		t.titles = append(t.titles, title)
+		added++
+	}
+	return added
+}
+
+func (t *titleSet) len() int { return len(t.titles) }
+
+func (t *titleSet) capped(limit int) []Title {
+	if limit > 0 && len(t.titles) > limit {
+		return t.titles[:limit]
+	}
+	return t.titles
 }
 
 // searchPage fetches the next slice of a result gallery, the way the search

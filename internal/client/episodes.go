@@ -35,29 +35,73 @@ func (e Episode) Runtime() string {
 	return TitleDetail{RuntimeSec: e.RuntimeSec}.Runtime()
 }
 
+// The GraphQL shapes the episode selector answers with. They are named so the
+// operations read as a translation from Netflix's wire format to the CLI's
+// model, rather than burying one inside the other.
+type seasonsResponse struct {
+	Videos []struct {
+		TypeName string `json:"__typename"`
+		VideoID  int    `json:"videoId"`
+		Seasons  struct {
+			Edges []struct {
+				Node seasonNode `json:"node"`
+			} `json:"edges"`
+		} `json:"seasons"`
+	} `json:"videos"`
+}
+
+type seasonNode struct {
+	VideoID  int    `json:"videoId"`
+	Number   int    `json:"number"`
+	Title    string `json:"title"`
+	Episodes struct {
+		TotalCount int `json:"totalCount"`
+	} `json:"episodes"`
+	ContentAdvisory struct {
+		CertificationValue string `json:"certificationValue"`
+	} `json:"contentAdvisory"`
+}
+
+type episodesResponse struct {
+	Videos []struct {
+		Episodes struct {
+			Edges []struct {
+				Node episodeNode `json:"node"`
+			} `json:"edges"`
+		} `json:"episodes"`
+	} `json:"videos"`
+}
+
+type episodeNode struct {
+	VideoID            int    `json:"videoId"`
+	Number             int    `json:"number"`
+	Title              string `json:"title"`
+	RuntimeSec         int    `json:"runtimeSec"`
+	IsPlayable         bool   `json:"isPlayable"`
+	ContextualSynopsis struct {
+		Text string `json:"text"`
+	} `json:"contextualSynopsis"`
+	Bookmark struct {
+		Position int `json:"position"`
+	} `json:"bookmark"`
+}
+
+func (n episodeNode) toEpisode() Episode {
+	return Episode{
+		ID:          n.VideoID,
+		Number:      n.Number,
+		Title:       n.Title,
+		Synopsis:    n.ContextualSynopsis.Text,
+		RuntimeSec:  n.RuntimeSec,
+		ProgressSec: n.Bookmark.Position,
+		Playable:    n.IsPlayable,
+		URL:         TitleURL(n.VideoID),
+	}
+}
+
 // Seasons lists a show's seasons, oldest first.
 func (s *Catalog) Seasons(showID int) ([]Season, error) {
-	var resp struct {
-		Videos []struct {
-			TypeName string `json:"__typename"`
-			VideoID  int    `json:"videoId"`
-			Seasons  struct {
-				Edges []struct {
-					Node struct {
-						VideoID  int    `json:"videoId"`
-						Number   int    `json:"number"`
-						Title    string `json:"title"`
-						Episodes struct {
-							TotalCount int `json:"totalCount"`
-						} `json:"episodes"`
-						ContentAdvisory struct {
-							CertificationValue string `json:"certificationValue"`
-						} `json:"contentAdvisory"`
-					} `json:"node"`
-				} `json:"edges"`
-			} `json:"seasons"`
-		} `json:"videos"`
-	}
+	var resp seasonsResponse
 	if err := s.client.GraphQL("PreviewModalEpisodeSelector", map[string]any{
 		"showId":      showID,
 		"seasonCount": maxSeasonsFetched,
@@ -94,27 +138,7 @@ func (s *Catalog) Episodes(seasonID, limit int) ([]Episode, error) {
 	if limit <= 0 || limit > DefaultEpisodePageSize {
 		limit = DefaultEpisodePageSize
 	}
-	var resp struct {
-		Videos []struct {
-			Episodes struct {
-				Edges []struct {
-					Node struct {
-						VideoID            int    `json:"videoId"`
-						Number             int    `json:"number"`
-						Title              string `json:"title"`
-						RuntimeSec         int    `json:"runtimeSec"`
-						IsPlayable         bool   `json:"isPlayable"`
-						ContextualSynopsis struct {
-							Text string `json:"text"`
-						} `json:"contextualSynopsis"`
-						Bookmark struct {
-							Position int `json:"position"`
-						} `json:"bookmark"`
-					} `json:"node"`
-				} `json:"edges"`
-			} `json:"episodes"`
-		} `json:"videos"`
-	}
+	var resp episodesResponse
 	if err := s.client.GraphQL("PreviewModalEpisodeSelectorSeasonEpisodes", map[string]any{
 		"seasonId":          seasonID,
 		"count":             limit,
@@ -130,17 +154,7 @@ func (s *Catalog) Episodes(seasonID, limit int) ([]Episode, error) {
 	edges := resp.Videos[0].Episodes.Edges
 	episodes := make([]Episode, 0, len(edges))
 	for _, edge := range edges {
-		node := edge.Node
-		episodes = append(episodes, Episode{
-			ID:          node.VideoID,
-			Number:      node.Number,
-			Title:       node.Title,
-			Synopsis:    node.ContextualSynopsis.Text,
-			RuntimeSec:  node.RuntimeSec,
-			ProgressSec: node.Bookmark.Position,
-			Playable:    node.IsPlayable,
-			URL:         TitleURL(node.VideoID),
-		})
+		episodes = append(episodes, edge.Node.toEpisode())
 	}
 	return episodes, nil
 }

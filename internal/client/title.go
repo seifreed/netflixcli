@@ -6,6 +6,19 @@ import (
 	"strings"
 )
 
+// Title is one catalogue entry as the CLI reports it.
+type Title struct {
+	ID            int    `json:"id"`
+	Title         string `json:"title"`
+	Kind          string `json:"kind"` // Movie, Show, Game, …
+	URL           string `json:"url"`
+	MaturityLevel int    `json:"maturityLevel,omitempty"`
+	Artwork       string `json:"artwork,omitempty"`
+}
+
+// TitleURL is the canonical watch page for a Netflix video id.
+func TitleURL(id int) string { return fmt.Sprintf("%s/title/%d", BaseURL, id) }
+
 // TitleDetail is everything the CLI reports about one title.
 type TitleDetail struct {
 	ID           int      `json:"id"`
