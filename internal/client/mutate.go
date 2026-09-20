@@ -65,8 +65,8 @@ func (s *Library) playlistMutation(op, field string, videoID int) (EntityState, 
 	return result.state()
 }
 
-// ThumbRatings maps the CLI's rating words to Netflix's enum.
-var ThumbRatings = map[string]string{
+// thumbRatings maps the CLI's rating words to Netflix's enum.
+var thumbRatings = map[string]string{
 	"up":      "THUMBS_UP",
 	"down":    "THUMBS_DOWN",
 	"love":    "THUMBS_WAY_UP",
@@ -75,9 +75,9 @@ var ThumbRatings = map[string]string{
 	"unrated": "THUMBS_UNRATED",
 }
 
-// ParseThumbRating maps a rating word to the enum Netflix expects.
-func ParseThumbRating(word string) (string, error) {
-	rating, ok := ThumbRatings[strings.ToLower(strings.TrimSpace(word))]
+// parseThumbRating maps a rating word to the enum Netflix expects.
+func parseThumbRating(word string) (string, error) {
+	rating, ok := thumbRatings[strings.ToLower(strings.TrimSpace(word))]
 	if !ok {
 		return "", fmt.Errorf("unknown rating %q (want up, down, love or none)", word)
 	}
@@ -86,7 +86,7 @@ func ParseThumbRating(word string) (string, error) {
 
 // Rate sets the current profile's thumb rating for a title.
 func (s *Library) Rate(videoID int, rating string) (EntityState, error) {
-	enum, err := ParseThumbRating(rating)
+	enum, err := parseThumbRating(rating)
 	if err != nil {
 		return EntityState{}, err
 	}

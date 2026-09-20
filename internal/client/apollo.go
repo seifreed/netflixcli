@@ -114,7 +114,9 @@ func (c apolloCache) rootPage() map[string]any {
 // knownFeeds are the row identities Netflix encodes in a section's page-update
 // actions. The row titles themselves are localised, so these are what the CLI
 // matches on.
-var knownFeeds = []string{"continuewatching", "playlist", "favoritetitles", "reminders", "trailers"}
+var knownFeeds = []string{
+	FeedContinueWatching, FeedMyList, FeedLiked, FeedReminders, FeedTrailers,
+}
 
 // sectionFeed reports which personal feed a section is, or "" for an editorial
 // row. The feed name is carried inside the base64 ids of the section's

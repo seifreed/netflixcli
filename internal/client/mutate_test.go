@@ -14,16 +14,16 @@ func TestParseThumbRating(t *testing.T) {
 	}
 	for _, tc := range cases {
 		word, want := tc.word, tc.want
-		got, err := ParseThumbRating(word)
+		got, err := parseThumbRating(word)
 		if err != nil {
-			t.Errorf("ParseThumbRating(%q): %v", word, err)
+			t.Errorf("parseThumbRating(%q): %v", word, err)
 			continue
 		}
 		if got != want {
-			t.Errorf("ParseThumbRating(%q) = %q, want %q", word, got, want)
+			t.Errorf("parseThumbRating(%q) = %q, want %q", word, got, want)
 		}
 	}
-	if _, err := ParseThumbRating("sideways"); err == nil {
+	if _, err := parseThumbRating("sideways"); err == nil {
 		t.Error("want an error for an unknown rating")
 	}
 }
