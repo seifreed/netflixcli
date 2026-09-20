@@ -1,6 +1,9 @@
 package client
 
-import "testing"
+import (
+	"encoding/base64"
+	"testing"
+)
 
 // A top-10 row is identified by its card treatment, because the row title is
 // localised ("Las 10 series más populares hoy en este país: España").
@@ -70,3 +73,32 @@ func TestOptionalString(t *testing.T) {
 		t.Error("a cursor must be sent as itself")
 	}
 }
+
+// `browse --all` answers for the same surface `browse` does, so it must not
+// answer with less. It used to drop every row's feed and every empty personal
+// row, so My Netflix came back one row short with nothing naming the lists.
+func TestFetchedRowsCarryTheFeedAndKeepEmptyPersonalRows(t *testing.T) {
+	var page pinotPage
+	mustUnmarshal(t, `{"page":{"sections":{"edges":[
+	 {"node":{"__typename":"PinotCarouselSection","_id":"s1","displayString":"Mi lista",
+	   "eventListeners":[{"actions":[{"id":"`+base64Of("k playlist v")+`"}]}],
+	   "entities":{"edges":[{"node":{"displayString":"Dark","unifiedEntity":{"__typename":"Show","videoId":80100172}}}]}}},
+	 {"node":{"__typename":"PinotCarouselSection","_id":"s2","displayString":"Recordatorios programados",
+	   "eventListeners":[{"actions":[{"id":"`+base64Of("x reminders y")+`"}]}],
+	   "entities":{"edges":[]}}},
+	 {"node":{"__typename":"PinotCarouselSection","_id":"s3","displayString":"Una fila editorial vacía",
+	   "entities":{"edges":[]}}}]}}}`, &page)
+
+	rows := page.rows()
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want the empty personal row kept and the empty editorial one dropped: %+v", len(rows), rows)
+	}
+	if rows[0].Feed != FeedMyList {
+		t.Errorf("row 0 feed = %q, want %q", rows[0].Feed, FeedMyList)
+	}
+	if rows[1].Feed != FeedReminders || len(rows[1].Titles) != 0 {
+		t.Errorf("row 1 = %+v, want the empty reminders row", rows[1])
+	}
+}
+
+func base64Of(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }

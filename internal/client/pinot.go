@@ -24,7 +24,15 @@ type pinotSection struct {
 	TypeName      string `json:"__typename"`
 	ID            string `json:"_id"` // the node id pagination asks for more by
 	DisplayString string `json:"displayString"`
-	Entities      struct {
+	// EventListeners carry the section's page-update actions, whose base64 ids
+	// name the personal feed the section is — the same marker the page cache
+	// carries (see apollo.go).
+	EventListeners []struct {
+		Actions []struct {
+			ID string `json:"id"`
+		} `json:"actions"`
+	} `json:"eventListeners"`
+	Entities struct {
 		Edges []struct {
 			Node pinotEntity `json:"node"`
 		} `json:"edges"`
@@ -78,6 +86,18 @@ func (s pinotSection) ranked() bool {
 	return false
 }
 
+// feed reports which personal feed this section is, or "" for an editorial row.
+func (s pinotSection) feed() string {
+	for _, listener := range s.EventListeners {
+		for _, action := range listener.Actions {
+			if feed := feedFromActionID(action.ID); feed != "" {
+				return feed
+			}
+		}
+	}
+	return ""
+}
+
 // titles flattens one section, dropping cards that carry no video id (headers,
 // autocomplete suggestions, games without a video entity).
 func (s pinotSection) titles() []Title {
@@ -90,18 +110,24 @@ func (s pinotSection) titles() []Title {
 	return out
 }
 
-// rows returns every section of a fetched page, in page order. Browse surfaces
-// read their rows from the page cache instead; this walks the ones that arrive
-// over GraphQL, past the eighth.
+// rows returns every section of a fetched page, in page order.
+//
+// It keeps the same rule the page cache does: a personal row survives being
+// empty, because "My List is empty" is an answer and dropping it would be
+// indistinguishable from Netflix not rendering it, while an empty editorial row
+// is just noise. `browse --all` used to lose those rows and every row's feed,
+// so it answered with less than `browse` did for the same surface.
 func (p pinotPage) rows() []Row {
 	rows := make([]Row, 0, len(p.Page.Sections.Edges))
 	for _, edge := range p.Page.Sections.Edges {
 		titles := edge.Node.titles()
-		if len(titles) == 0 {
+		feed := edge.Node.feed()
+		if len(titles) == 0 && feed == "" {
 			continue
 		}
 		rows = append(rows, Row{
 			Name:   edge.Node.DisplayString,
+			Feed:   feed,
 			Ranked: edge.Node.ranked(),
 			Titles: titles,
 		})

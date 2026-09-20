@@ -128,6 +128,19 @@ var knownFeeds = []string{
 	FeedContinueWatching, FeedMyList, FeedLiked, FeedReminders, FeedTrailers,
 }
 
+// feedFromActionID reports which personal feed a section's page-update action
+// names, or "" when it names none. Both row sources ask this the same way: the
+// cache carries the id inside a `__ref`, the gateway carries it as a field.
+func feedFromActionID(encoded string) string {
+	decoded := decodeBase64Loose(encoded)
+	for _, feed := range knownFeeds {
+		if strings.Contains(decoded, feed) {
+			return feed
+		}
+	}
+	return ""
+}
+
 // sectionFeed reports which personal feed a section is, or "" for an editorial
 // row. The feed name is carried inside the base64 ids of the section's
 // page-update actions.
@@ -149,11 +162,8 @@ func (c apolloCache) sectionFeed(section map[string]any) string {
 			if !found {
 				continue
 			}
-			decoded := decodeBase64Loose(encoded)
-			for _, feed := range knownFeeds {
-				if strings.Contains(decoded, feed) {
-					return feed
-				}
+			if feed := feedFromActionID(encoded); feed != "" {
+				return feed
 			}
 		}
 	}
