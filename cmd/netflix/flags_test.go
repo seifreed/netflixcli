@@ -100,3 +100,20 @@ func TestTitleOperand(t *testing.T) {
 		t.Fatal("want an error for an operand that is not a title id")
 	}
 }
+
+// A CDP endpoint the CLI will not talk to is a mistake in the invocation, and
+// has to be reported as one. It used to be wrapped in a fetcher that failed on
+// first use, so it surfaced as a page-load error one call later.
+func TestNewClientRejectsARemoteBrowserEndpointUpFront(t *testing.T) {
+	t.Setenv("NETFLIX_CONFIG_DIR", t.TempDir())
+	cl, err := newClient(&common{browserEndpoint: "http://198.51.100.7:9222"})
+	if err == nil {
+		t.Fatal("want an error for a non-loopback CDP endpoint")
+	}
+	if cl != nil {
+		t.Error("a client was returned alongside the error")
+	}
+	if !strings.Contains(err.Error(), "loopback") {
+		t.Errorf("error %q does not say what is wrong with the endpoint", err)
+	}
+}

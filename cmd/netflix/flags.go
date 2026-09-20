@@ -16,6 +16,10 @@ import (
 	"github.com/seifreed/netflixcli/internal/session"
 )
 
+// browserFetchTimeout is how long a page may take through the user's Chrome. It
+// is generous because an interstitial may be waiting for them to clear it.
+const browserFetchTimeout = 60 * time.Second
+
 // common flags shared by every subcommand.
 type common struct {
 	lang            string
@@ -72,12 +76,11 @@ func newClient(c *common) (*client.Client, error) {
 	}
 	if c.browser || c.browserEndpoint != "" || os.Getenv("NETFLIX_CHROME_CDP_URL") != "" {
 		endpoint := firstNonEmpty(c.browserEndpoint, os.Getenv("NETFLIX_CHROME_CDP_URL"), browser.DefaultEndpoint)
-		fetcher, fetchErr := browser.New(endpoint)
-		if fetchErr != nil {
-			cl.SetFetcher(func(string) (string, error) { return "", fetchErr })
-		} else {
-			cl.SetFetcher(func(rawURL string) (string, error) { return fetcher.Fetch(rawURL, 60*time.Second) })
+		fetcher, err := browser.New(endpoint)
+		if err != nil {
+			return nil, err
 		}
+		cl.SetFetcher(func(rawURL string) (string, error) { return fetcher.Fetch(rawURL, browserFetchTimeout) })
 	}
 	if profile := firstNonEmpty(c.profile, cfg.Defaults.Profile); profile != "" {
 		if _, _, err := cl.Account.UseProfile(profile); err != nil {

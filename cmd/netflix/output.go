@@ -53,7 +53,10 @@ func toonEncode(v any) (string, error) {
 		return "", err
 	}
 	var generic any
-	_ = json.Unmarshal(raw, &generic)
+	// raw came straight out of json.Marshal, so it decodes.
+	if err := json.Unmarshal(raw, &generic); err != nil {
+		return "", err
+	}
 	return toon.MarshalString(generic)
 }
 

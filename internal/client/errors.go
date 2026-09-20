@@ -23,6 +23,15 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("netflix: HTTP %d: %s", e.Status, body)
 }
 
+// truncate cuts s to n runes, never mid-rune, marking what it dropped.
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}
+
 func isHTMLBody(body string) bool {
 	head := strings.ToLower(strings.TrimSpace(body))
 	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")

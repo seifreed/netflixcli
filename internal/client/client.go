@@ -192,11 +192,3 @@ func (c *Client) getOnce(rawURL string) (string, error) {
 	}
 	return string(data), nil
 }
-
-func truncate(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n]) + "…"
-}
