@@ -67,6 +67,19 @@ Agent skill     .claude/skills/netflix-browse for Claude Code
 
 ## Installation
 
+### From a Release
+
+Every tag publishes prebuilt archives for Linux, macOS and Windows on amd64 and
+arm64 (Windows on amd64 only), with a `checksums.txt` beside them. Download the
+one for your platform from
+[Releases](https://github.com/seifreed/netflixcli/releases), verify it, and put
+the binary on your `PATH`:
+
+```bash
+shasum -a 256 -c checksums.txt --ignore-missing
+tar xzf netflix_*_darwin_arm64.tar.gz
+```
+
 ### From Source (Recommended)
 
 ```bash
@@ -256,8 +269,22 @@ lang = "es-ES"
 
 ## Requirements
 
-- Go 1.26.6+ (see [go.mod](go.mod))
+- Go 1.26.6+ (see [go.mod](go.mod)) — to build from source; a release archive needs nothing
 - A browser you are signed in to Netflix with, for the initial session import
+
+### Supported Platforms
+
+Built and tested on every push, on all three:
+
+| Platform | Built | Tested in CI |
+|---|---|---|
+| Linux (amd64, arm64) | yes | yes, with the race detector |
+| macOS (amd64, arm64) | yes | yes, with the race detector |
+| Windows (amd64) | yes | yes |
+
+The race detector needs a C toolchain, which is certain on the Linux and macOS
+images; a data race is not platform-specific, and this CLI's only concurrency is
+a single `sync.Once`, so the Windows job runs the same tests without it.
 
 ---
 
@@ -270,6 +297,29 @@ Contributions are welcome.
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Run `make gate` and make sure it is green
 5. Open a Pull Request
+
+### Cutting a Release
+
+A release is made by pushing a tag, and only by pushing a tag:
+
+```bash
+git tag -a v1.2.0 -m "v1.2.0"
+git push origin v1.2.0
+```
+
+The tag is the version. `release.yml` first runs the very same gates a push to
+`main` runs — the three-platform build and test matrix, the quality gate and the
+security gate — so a tag cannot publish something `main` would have rejected.
+Only then does GoReleaser cross-compile the archives, write `checksums.txt` and
+attach them to the GitHub release for that tag.
+
+The tag is stamped into the binary, so an installed copy can always say where it
+came from:
+
+```console
+$ netflix version
+v1.2.0 (a1b2c3d, 2026-09-20T19:06:07Z)
+```
 
 ---
 

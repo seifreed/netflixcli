@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # release.yml calls this, so a tag is only published if it passes the same
+  # gates a push to main does — on all three platforms.
+  workflow_call:
 
 # Least privilege by default; the security job raises only what it needs.
 # No step consumes event input (titles, branch names, commit messages), so
@@ -17,6 +20,51 @@ permissions:
   contents: read
 
 jobs:
+  # The CLI ships for Linux, macOS and Windows (see .goreleaser.yaml), so it is
+  # built and tested on all three rather than cross-compiled and hoped for.
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # one platform failing should not hide the others
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # CGO_ENABLED=0 matches the released binary.
+      - name: Build
+        run: go build ./...
+        env:
+          CGO_ENABLED: 0
+
+      - name: Vet
+        run: go vet ./...
+        env:
+          CGO_ENABLED: 0
+
+      # The race detector needs a C toolchain, which is certain on the Linux and
+      # macOS images. This CLI's only concurrency is a sync.Once and a race is
+      # not platform-specific, so Windows runs the same tests without it rather
+      # than make the build depend on a toolchain that may not be there.
+      - name: Test (race)
+        if: runner.os != 'Windows'
+        run: go test -race ./...
+        env:
+          CGO_ENABLED: 1
+
+      - name: Test
+        if: runner.os == 'Windows'
+        run: go test ./...
+        env:
+          CGO_ENABLED: 0
+
+  # Formatting, linting, dependency drift and the coverage floor say the same
+  # thing on every platform, so they run once. They need make and bash.
   quality:
     name: quality gate
     runs-on: ubuntu-latest

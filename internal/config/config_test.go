@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -31,12 +32,16 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Errorf("cookie = %q, want it to survive the round trip", got.Cookie)
 	}
 	// The file holds a session cookie, so it must not be world-readable.
-	info, err := os.Stat(filepath.Join(dir, "session.json"))
-	if err != nil {
-		t.Fatalf("stat: %v", err)
-	}
-	if perm := info.Mode().Perm(); perm&0o077 != 0 {
-		t.Errorf("mode = %v, want no group or other access", perm)
+	// Windows reports a synthesised 0666 for any writable file, so there is
+	// nothing to assert there; its access control is ACLs, not mode bits.
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(filepath.Join(dir, "session.json"))
+		if err != nil {
+			t.Fatalf("stat: %v", err)
+		}
+		if perm := info.Mode().Perm(); perm&0o077 != 0 {
+			t.Errorf("mode = %v, want no group or other access", perm)
+		}
 	}
 }
 
@@ -86,6 +91,9 @@ func TestLoadConfigReadsTOML(t *testing.T) {
 // writes somebody else's account. MkdirAll only sets the mode when it creates
 // the directory, so one that was already there keeps whatever it had.
 func TestSharedDirWarning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows has no Unix mode bits to set or read")
+	}
 	for perm, want := range map[os.FileMode]bool{
 		0o700: false,
 		0o500: false,

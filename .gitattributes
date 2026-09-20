@@ -1,0 +1,6 @@
+# Go source is checked out with LF on every platform. Without this, a Windows
+# checkout converts to CRLF and `gofmt -l` reports every file as unformatted —
+# and any test comparing exact output would compare against the wrong newline.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

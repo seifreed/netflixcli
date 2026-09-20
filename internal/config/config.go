@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/BurntSushi/toml"
 )
@@ -63,6 +64,13 @@ func ensureDir() error { return os.MkdirAll(Dir(), 0o700) }
 // MkdirAll only sets the mode when it creates the directory, so one that was
 // already there keeps whatever it had.
 func SharedDirWarning() string {
+	// Windows carries no Unix permission bits: os.Stat synthesises 0777 for a
+	// directory, so this would warn on every save there. Access on Windows is
+	// governed by ACLs, which os.FileMode does not represent and this cannot
+	// read — saying nothing is better than saying something untrue.
+	if runtime.GOOS == "windows" {
+		return ""
+	}
 	info, err := os.Stat(Dir())
 	if err != nil || !info.IsDir() {
 		return ""
