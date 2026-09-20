@@ -38,6 +38,10 @@ type Client struct {
 	// Cookie carries the browser session (NetflixId / SecureNetflixId).
 	Cookie string
 
+	// GraphQLURL is the gateway persisted operations are sent to. It defaults to
+	// GraphQLEndpoint; tests point it at a stub.
+	GraphQLURL string
+
 	// Profile is the guid of the profile whose data is requested; empty means
 	// whichever profile the cookie last selected in the browser.
 	Profile string
@@ -72,7 +76,7 @@ func (c *Client) logf(format string, args ...any) {
 // back to the stdlib transport.
 func New() *Client {
 	hc := &http.Client{Timeout: 30 * time.Second}
-	c := &Client{HTTP: hc, BaseURL: BaseURL, UserAgent: DefaultUA, Lang: "es-ES"}
+	c := &Client{HTTP: hc, BaseURL: BaseURL, GraphQLURL: GraphQLEndpoint, UserAgent: DefaultUA, Lang: "es-ES"}
 	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) > 0 && cookie.ValidHeader(c.Cookie) && trustedCookieRequest(via[0].URL.String()) {
 			initial := via[0].URL

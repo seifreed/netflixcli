@@ -86,7 +86,11 @@ func (c *Client) newGraphQLRequest(op string, body []byte) (*http.Request, error
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest("POST", GraphQLEndpoint, bytes.NewReader(body))
+	endpoint := c.GraphQLURL
+	if endpoint == "" {
+		endpoint = GraphQLEndpoint
+	}
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

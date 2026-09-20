@@ -25,6 +25,7 @@ or from a clone:
 
 ```sh
 make build     # ./netflix
+make check     # gofmt, vet, tests, build
 ```
 
 ## Read commands
