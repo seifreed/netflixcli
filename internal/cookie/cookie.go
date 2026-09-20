@@ -40,21 +40,9 @@ func LooksAuthenticated(raw string) bool {
 	return Value(raw, "NetflixId") != ""
 }
 
-// Value returns the value of the named cookie in a Cookie header, or "".
-func Value(raw, want string) string {
-	for _, part := range strings.Split(raw, ";") {
-		name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
-		if ok && strings.EqualFold(name, want) {
-			return value
-		}
-	}
-	return ""
-}
-
-// Merge applies Set-Cookie updates to a Cookie header, returning the new header
-// with pairs sorted by name so the result is stable. A cookie the server
-// expires (MaxAge < 0) is dropped.
-func Merge(header string, updates []*http.Cookie) string {
+// Parse reads a Cookie header into its name/value pairs. A part that carries no
+// "=" is not a cookie and is skipped.
+func Parse(header string) map[string]string {
 	jar := map[string]string{}
 	for _, part := range strings.Split(header, ";") {
 		name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
@@ -62,6 +50,41 @@ func Merge(header string, updates []*http.Cookie) string {
 			jar[name] = value
 		}
 	}
+	return jar
+}
+
+// Header renders cookie pairs as "n1=v1; n2=v2", sorted by name so the same jar
+// always produces the same header, and dropping any pair that could not be
+// carried by one.
+func Header(jar map[string]string) string {
+	names := make([]string, 0, len(jar))
+	for name := range jar {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		if ValidPair(name, jar[name]) {
+			parts = append(parts, name+"="+jar[name])
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+// Value returns the value of the named cookie in a Cookie header, or "".
+func Value(raw, want string) string {
+	for name, value := range Parse(raw) {
+		if strings.EqualFold(name, want) {
+			return value
+		}
+	}
+	return ""
+}
+
+// Merge applies Set-Cookie updates to a Cookie header. A cookie the server
+// expires (MaxAge < 0) is dropped.
+func Merge(header string, updates []*http.Cookie) string {
+	jar := Parse(header)
 	for _, c := range updates {
 		if c == nil || c.Name == "" {
 			continue
@@ -72,14 +95,5 @@ func Merge(header string, updates []*http.Cookie) string {
 		}
 		jar[c.Name] = c.Value
 	}
-	names := make([]string, 0, len(jar))
-	for name := range jar {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	parts := make([]string, 0, len(names))
-	for _, name := range names {
-		parts = append(parts, name+"="+jar[name])
-	}
-	return strings.Join(parts, "; ")
+	return Header(jar)
 }

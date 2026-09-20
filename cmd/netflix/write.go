@@ -7,24 +7,18 @@ import (
 	"github.com/seifreed/netflixcli/internal/client"
 )
 
-// cmdMyListAdd saves a title to the current profile's My List.
-func cmdMyListAdd(args []string) error {
-	return myListChange(args, "add", func(cl *client.Client, id int) (client.EntityState, error) {
-		return cl.Library.AddToMyList(id)
-	})
-}
+// libraryWrite is a write that names one title and answers with its new state —
+// the shape of every such method on client.Library, so callers pass the method
+// itself rather than a closure around it.
+type libraryWrite func(*client.Library, int) (client.EntityState, error)
 
-// cmdMyListRemove drops a title from the current profile's My List.
-func cmdMyListRemove(args []string) error {
-	return myListChange(args, "remove", func(cl *client.Client, id int) (client.EntityState, error) {
-		return cl.Library.RemoveFromMyList(id)
-	})
-}
-
-func myListChange(args []string, verb string, change func(*client.Client, int) (client.EntityState, error)) error {
-	fs, cf := newCommonFlags("mylist " + verb)
+// entityWrite runs one of those: it reads the title operand, builds the client,
+// applies the write and renders what came back. Every such command has this
+// shape; only the write and how its result reads differ, so they say only that.
+func entityWrite(args []string, name string, apply libraryWrite, human func(client.EntityState)) error {
+	fs, cf := newCommonFlags(name)
 	parseFlags(fs, args)
-	id, err := titleOperand(fs, fmt.Sprintf("netflix mylist %s <id|url>", verb))
+	id, err := titleOperand(fs, "netflix "+name+" <id|url>")
 	if err != nil {
 		return err
 	}
@@ -32,17 +26,29 @@ func myListChange(args []string, verb string, change func(*client.Client, int) (
 	if err != nil {
 		return err
 	}
-	state, err := change(cl, id)
+	state, err := apply(cl.Library, id)
 	if err != nil {
 		return err
 	}
-	return output(cf, state, func() {
-		if state.InMyList {
-			fmt.Printf("%s is in My List\n", state.Title)
-			return
-		}
-		fmt.Printf("%s is no longer in My List\n", state.Title)
-	})
+	return output(cf, state, func() { human(state) })
+}
+
+// cmdMyListAdd saves a title to the current profile's My List.
+func cmdMyListAdd(args []string) error {
+	return entityWrite(args, "mylist add", (*client.Library).AddToMyList, printMyListState)
+}
+
+// cmdMyListRemove drops a title from the current profile's My List.
+func cmdMyListRemove(args []string) error {
+	return entityWrite(args, "mylist remove", (*client.Library).RemoveFromMyList, printMyListState)
+}
+
+func printMyListState(state client.EntityState) {
+	if state.InMyList {
+		fmt.Printf("%s is in My List\n", state.Title)
+		return
+	}
+	fmt.Printf("%s is no longer in My List\n", state.Title)
 }
 
 // cmdRate sets this profile's thumb rating for a title.
@@ -92,41 +98,21 @@ func cmdContinueRemove(args []string) error {
 
 // cmdRemindAdd asks Netflix to remind this profile when a title arrives.
 func cmdRemindAdd(args []string) error {
-	return remindChange(args, "add", func(cl *client.Client, id int) (client.EntityState, error) {
-		return cl.Library.AddReminder(id)
-	})
+	return entityWrite(args, "remind add", (*client.Library).AddReminder, printReminderState)
 }
 
 // cmdRemindRemove drops a title's release reminder.
 func cmdRemindRemove(args []string) error {
-	return remindChange(args, "remove", func(cl *client.Client, id int) (client.EntityState, error) {
-		return cl.Library.RemoveReminder(id)
-	})
+	return entityWrite(args, "remind remove", (*client.Library).RemoveReminder, printReminderState)
 }
 
-func remindChange(args []string, verb string, change func(*client.Client, int) (client.EntityState, error)) error {
-	fs, cf := newCommonFlags("remind " + verb)
-	parseFlags(fs, args)
-	id, err := titleOperand(fs, fmt.Sprintf("netflix remind %s <id|url>", verb))
-	if err != nil {
-		return err
-	}
-	cl, err := newClient(cf)
-	if err != nil {
-		return err
-	}
-	state, err := change(cl, id)
-	if err != nil {
-		return err
-	}
-	return output(cf, state, func() {
-		// The reminder mutations answer without a title, so the id is what there is
-		// to name, and the two flags are reported exactly as they came back rather
-		// than narrated: asking to be reminded about an already-available title also
-		// files it in My List, and the response does not distinguish that from a
-		// title that was in My List already.
-		fmt.Printf("title %d — reminder: %s · My List: %s\n", state.ID, yesNo(state.Reminder), yesNo(state.InMyList))
-	})
+// printReminderState reports the two flags exactly as they came back rather than
+// narrating them. The reminder mutations answer without a title, so the id is
+// what there is to name, and asking to be reminded about an already-available
+// title also files it in My List — which the response does not distinguish from
+// a title that was in My List already.
+func printReminderState(state client.EntityState) {
+	fmt.Printf("title %d — reminder: %s · My List: %s\n", state.ID, yesNo(state.Reminder), yesNo(state.InMyList))
 }
 
 func yesNo(b bool) string {

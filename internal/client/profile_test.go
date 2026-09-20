@@ -71,14 +71,7 @@ const memberPage = bootstrapPage + pageWithProfiles
 // the one page the client bootstraps from. Profiles used to fetch it again, so
 // a configured default profile cost two loads before any command ran.
 func TestTheAccountIsReadFromOnePageLoad(t *testing.T) {
-	var loads int
-	c, _ := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		loads++
-		if _, err := w.Write([]byte(memberPage)); err != nil {
-			t.Errorf("stub write: %v", err)
-		}
-	})
-	c.Cookie = "NetflixId=stub"
+	c, loads, _ := memberStub(t, nil)
 
 	if _, err := c.Account.Whoami(); err != nil {
 		t.Fatalf("Whoami: %v", err)
@@ -93,21 +86,14 @@ func TestTheAccountIsReadFromOnePageLoad(t *testing.T) {
 	if len(profiles) != 3 {
 		t.Errorf("got %d profiles, want 3", len(profiles))
 	}
-	if loads != 1 {
-		t.Errorf("the page was loaded %d times, want 1", loads)
+	if *loads != 1 {
+		t.Errorf("the page was loaded %d times, want 1", *loads)
 	}
 }
 
 // A profile switch invalidates the bootstrap, so the list is read afresh.
 func TestSwitchingProfilesRereadsTheAccount(t *testing.T) {
-	var loads int
-	c, _ := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		loads++
-		if _, err := w.Write([]byte(memberPage)); err != nil {
-			t.Errorf("stub write: %v", err)
-		}
-	})
-	c.Cookie = "NetflixId=stub"
+	c, loads, _ := memberStub(t, nil)
 
 	if _, err := c.Account.Profiles(); err != nil {
 		t.Fatalf("Profiles: %v", err)
@@ -116,35 +102,38 @@ func TestSwitchingProfilesRereadsTheAccount(t *testing.T) {
 	if _, err := c.Account.Profiles(); err != nil {
 		t.Fatalf("Profiles after switch: %v", err)
 	}
-	if loads != 2 {
-		t.Errorf("the page was loaded %d times, want 2", loads)
+	if *loads != 2 {
+		t.Errorf("the page was loaded %d times, want 2", *loads)
 	}
 }
 
-// switchStub serves the member page everywhere, and answers /SwitchProfile the
+// memberStub serves the member page everywhere, and answers /SwitchProfile the
 // way Netflix does: a redirect whose Set-Cookie headers carry the new session.
-func switchStub(t *testing.T, setCookies []string) (*Client, *int) {
+// It counts page loads and switches separately, since what these tests assert
+// is how often each happens.
+func memberStub(t *testing.T, setCookies []string) (c *Client, loads, switches *int) {
 	t.Helper()
-	switches := 0
-	c, _ := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+	var pageLoads, switchCalls int
+	c, _ = testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/SwitchProfile") {
-			switches++
+			switchCalls++
 			for _, c := range setCookies {
 				w.Header().Add("Set-Cookie", c)
 			}
 			w.WriteHeader(http.StatusFound)
 			return
 		}
+		pageLoads++
 		if _, err := w.Write([]byte(memberPage)); err != nil {
 			t.Errorf("stub write: %v", err)
 		}
 	})
 	c.Cookie = "NetflixId=old; nfvdid=keep"
-	return c, &switches
+	return c, &pageLoads, &switchCalls
 }
 
 func TestUseProfileSwitchesAndRefreshesTheSession(t *testing.T) {
-	c, switches := switchStub(t, []string{"NetflixId=new; Path=/", "extra=1; Path=/"})
+	c, _, switches := memberStub(t, []string{"NetflixId=new; Path=/", "extra=1; Path=/"})
 
 	profile, updated, err := c.Account.UseProfile("kid")
 	if err != nil {
@@ -172,7 +161,7 @@ func TestUseProfileSwitchesAndRefreshesTheSession(t *testing.T) {
 // The profile the session already acts as needs no request, and must not look
 // like a failed switch.
 func TestUseProfileOnTheCurrentProfileIsANoOp(t *testing.T) {
-	c, switches := switchStub(t, nil)
+	c, _, switches := memberStub(t, nil)
 	before := c.Cookie
 
 	profile, updated, err := c.Account.UseProfile("Grace")
@@ -188,7 +177,7 @@ func TestUseProfileOnTheCurrentProfileIsANoOp(t *testing.T) {
 }
 
 func TestUseProfileRefusesAPinLockedProfile(t *testing.T) {
-	c, switches := switchStub(t, nil)
+	c, _, switches := memberStub(t, nil)
 
 	if _, _, err := c.Account.UseProfile("Ada"); err == nil {
 		t.Fatal("want an error for a PIN-locked profile")
@@ -203,7 +192,7 @@ func TestUseProfileRefusesAPinLockedProfile(t *testing.T) {
 // Netflix answers a refused switch with a redirect that changes no cookie. The
 // session must not be reported as switched.
 func TestUseProfileReportsARefusedSwitch(t *testing.T) {
-	c, _ := switchStub(t, nil)
+	c, _, _ := memberStub(t, nil)
 	before := c.Cookie
 
 	if _, _, err := c.Account.UseProfile("Kid"); err == nil {
@@ -217,7 +206,7 @@ func TestUseProfileReportsARefusedSwitch(t *testing.T) {
 }
 
 func TestResolveProfileNamesTheOnesItHas(t *testing.T) {
-	c, _ := switchStub(t, nil)
+	c, _, _ := memberStub(t, nil)
 
 	if _, err := c.Account.ResolveProfile("  "); err == nil {
 		t.Error("want an error for a blank profile")

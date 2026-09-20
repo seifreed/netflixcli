@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/seifreed/netflixcli/internal/client"
 )
@@ -40,22 +40,16 @@ func cmdHistory(args []string) error {
 	})
 }
 
+// emitViewingsCSV writes the activity as CSV. The quoting is encoding/csv's, the
+// same package internal/client reads Netflix's own export with.
 func emitViewingsCSV(viewings []client.Viewing) error {
-	if _, err := fmt.Fprintln(os.Stdout, "date,title"); err != nil {
+	w := csv.NewWriter(os.Stdout)
+	rows := [][]string{{"date", "title"}}
+	for _, v := range viewings {
+		rows = append(rows, []string{v.Date, v.Title})
+	}
+	if err := w.WriteAll(rows); err != nil {
 		return err
 	}
-	for _, v := range viewings {
-		if _, err := fmt.Fprintf(os.Stdout, "%s,%s\n", v.Date, csvField(v.Title)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// csvField quotes a field that would otherwise break the row.
-func csvField(s string) string {
-	if !strings.ContainsAny(s, `,"`+"\n") {
-		return s
-	}
-	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	return w.Error()
 }

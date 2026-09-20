@@ -64,19 +64,6 @@ func TestEmitJSONLSplitsArrays(t *testing.T) {
 	}
 }
 
-func TestCSVField(t *testing.T) {
-	for in, want := range map[string]string{
-		"plain":         "plain",
-		"with, comma":   `"with, comma"`,
-		`with "quotes"`: `"with ""quotes"""`,
-		"with\nnewline": "\"with\nnewline\"",
-	} {
-		if got := csvField(in); got != want {
-			t.Errorf("csvField(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()

@@ -4,7 +4,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/browserutils/kooky"
@@ -97,7 +96,7 @@ func pickSessionCookie(cookies []browserCookie, want string) (string, bool) {
 	}
 	var fallback string
 	for _, bname := range storeOrder {
-		header := buildCookieHeader(stores[bname])
+		header := cookie.Header(stores[bname])
 		if cookie.LooksAuthenticated(header) {
 			return header, true
 		}
@@ -106,21 +105,4 @@ func pickSessionCookie(cookies []browserCookie, want string) (string, bool) {
 		}
 	}
 	return fallback, fallback != ""
-}
-
-// buildCookieHeader renders one store's cookies as "n1=v1; n2=v2", sorted by
-// name so the result is deterministic.
-func buildCookieHeader(store map[string]string) string {
-	names := make([]string, 0, len(store))
-	for name := range store {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	parts := make([]string, 0, len(names))
-	for _, name := range names {
-		if cookie.ValidPair(name, store[name]) {
-			parts = append(parts, name+"="+store[name])
-		}
-	}
-	return strings.Join(parts, "; ")
 }

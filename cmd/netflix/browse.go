@@ -34,7 +34,7 @@ func cmdBrowse(args []string) error {
 			fmt.Println("(no rows — the surface may not exist in this region)")
 			return
 		}
-		printRows(rows)
+		printRows(rows, bullet)
 	})
 }
 
@@ -64,17 +64,23 @@ func cmdFeed(feed string) func([]string) error {
 	}
 }
 
-func printRows(rows []client.Row) {
+// printRows prints each row under its name. mark renders what precedes a title:
+// a bullet, or its rank where the order is the point.
+func printRows(rows []client.Row, mark func(i int) string) {
 	for _, row := range rows {
 		fmt.Printf("\n%s\n", row.Name)
 		if len(row.Titles) == 0 {
 			fmt.Println("  (empty)")
 		}
-		for _, t := range row.Titles {
-			fmt.Printf("  • %s  [%d]\n", t.Title, t.ID)
+		for i, t := range row.Titles {
+			fmt.Printf("  %s %s  [%d]\n", mark(i), t.Title, t.ID)
 		}
 	}
 }
+
+func bullet(int) string { return "•" }
+
+func rank(i int) string { return fmt.Sprintf("%2d.", i+1) }
 
 // capRows caps every row's titles. Like capTitles it leaves the caller's rows
 // alone, so a capped view cannot be mistaken for the whole one.
@@ -112,15 +118,5 @@ func cmdTop(args []string) error {
 		return err
 	}
 	rows = capRows(rows, *limit)
-	return output(cf, rows, func() { printRanked(rows) })
-}
-
-// printRanked numbers the titles, because in these rows the order is the point.
-func printRanked(rows []client.Row) {
-	for _, row := range rows {
-		fmt.Printf("\n%s\n", row.Name)
-		for i, t := range row.Titles {
-			fmt.Printf("  %2d. %s  [%d]\n", i+1, t.Title, t.ID)
-		}
-	}
+	return output(cf, rows, func() { printRows(rows, rank) })
 }

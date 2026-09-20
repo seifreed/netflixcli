@@ -133,12 +133,3 @@ func TestCookiesFromBrowserReportsAnEmptyStore(t *testing.T) {
 		t.Errorf("error %q does not say what to do about it", err)
 	}
 }
-
-// The header is sorted so the same store always produces the same session file.
-func TestBuildCookieHeaderIsDeterministic(t *testing.T) {
-	store := map[string]string{"zeta": "1", "alpha": "2", "NetflixId": "3"}
-	want := "NetflixId=3; alpha=2; zeta=1"
-	if got := buildCookieHeader(store); got != want {
-		t.Errorf("buildCookieHeader = %q, want %q", got, want)
-	}
-}

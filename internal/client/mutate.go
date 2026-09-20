@@ -53,16 +53,31 @@ func (s *Library) RemoveFromMyList(videoID int) (EntityState, error) {
 	return s.playlistMutation("RemoveFromPlaylist", "removeEntityFromPlaylist", videoID)
 }
 
-func (s *Library) playlistMutation(op, field string, videoID int) (EntityState, error) {
-	var resp map[string]entityEnvelope
+// entityMutation runs a mutation on one title and returns the field it answered
+// under, still raw: the playlist mutations wrap the entity in an envelope, the
+// reminder ones return it bare, and only that differs between them.
+func (s *Library) entityMutation(op, field string, videoID int) (json.RawMessage, error) {
+	var resp map[string]json.RawMessage
 	if err := s.client.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
+		return nil, err
+	}
+	raw, ok := resp[field]
+	if !ok {
+		return nil, fmt.Errorf("netflix returned no result for %s", op)
+	}
+	return raw, nil
+}
+
+func (s *Library) playlistMutation(op, field string, videoID int) (EntityState, error) {
+	raw, err := s.entityMutation(op, field, videoID)
+	if err != nil {
 		return EntityState{}, err
 	}
-	result, ok := resp[field]
-	if !ok {
-		return EntityState{}, fmt.Errorf("netflix returned no result for %s", op)
+	var env entityEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return EntityState{}, fmt.Errorf("decode %s result: %w", op, err)
 	}
-	return result.state()
+	return env.state()
 }
 
 // thumbRatings maps the CLI's rating words to Netflix's enum.
@@ -119,13 +134,9 @@ func (s *Library) RemoveReminder(videoID int) (EntityState, error) {
 // The reminder mutations answer with the entity itself rather than wrapping it,
 // so the envelope is filled from that.
 func (s *Library) reminderMutation(op, field string, videoID int) (EntityState, error) {
-	var resp map[string]json.RawMessage
-	if err := s.client.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
+	raw, err := s.entityMutation(op, field, videoID)
+	if err != nil {
 		return EntityState{}, err
-	}
-	raw, ok := resp[field]
-	if !ok {
-		return EntityState{}, fmt.Errorf("netflix returned no result for %s", op)
 	}
 	var env entityEnvelope
 	if err := json.Unmarshal(raw, &env.Entity); err != nil {
