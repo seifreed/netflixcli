@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -136,8 +138,40 @@ func TestBrowseRendersEveryRow(t *testing.T) {
 
 // The feed is found by the id Netflix encodes in the row's actions, not by the
 // localised row title.
+// playlistActionID is the base64 page-update id Netflix puts on the My List
+// row; it is what names the row, since the title is localised.
+const playlistActionID = "CghwbGF5bGlzdBICCDc="
+
+// feedSection renders one My Netflix row as the gateway sends it.
+func feedSection(action, name string, total int, titles ...string) string {
+	cards := make([]string, 0, len(titles))
+	for i, title := range titles {
+		cards = append(cards, fmt.Sprintf(
+			`{"node":{"displayString":%q,"unifiedEntity":{"__typename":"Show","videoId":%d}}}`,
+			title, 80100000+i))
+	}
+	listeners := ""
+	if action != "" {
+		listeners = fmt.Sprintf(`"eventListeners":[{"actions":[{"id":%q}]}],`, action)
+	}
+	return fmt.Sprintf(`{"node":{"__typename":"PinotCarouselSection","_id":%q,"displayString":%q,%s
+		"entities":{"totalCount":%d,"pageInfo":{"endCursor":"c","hasNextPage":%t},"edges":[%s]}}}`,
+		name, name, listeners, total, len(titles) < total, strings.Join(cards, ","))
+}
+
+func sectionsResponse(sections ...string) string {
+	return `{"data":{"page":{"sections":{"pageInfo":{"endCursor":"","hasNextPage":false},"edges":[` +
+		strings.Join(sections, ",") + `]}}}}`
+}
+
 func TestMyListReadsThePersonalRow(t *testing.T) {
 	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"FetchMoreSections": sectionsResponse(
+			feedSection(playlistActionID, "Mi lista", 1, "Dark"),
+			feedSection("", "Tendencias", 1, "Fariña"),
+		),
+	})
 	code, out := runCommand(t, "mylist")
 	if code != exitOK {
 		t.Fatalf("exit code = %d, want %d", code, exitOK)
@@ -147,6 +181,66 @@ func TestMyListReadsThePersonalRow(t *testing.T) {
 	}
 	if strings.Contains(out, "Fariña") {
 		t.Error("mylist leaked a title from another row")
+	}
+}
+
+// The carousel in the page carries thirteen titles whatever the list holds, so
+// `mylist` used to answer with thirteen of three hundred and fifty-two. The
+// reply says how long the list is; a short one must be asked for again.
+func TestMyListAsksAgainWhenTheListIsLongerThanTheReply(t *testing.T) {
+	stubNetflix(t)
+	// A list longer than the first ask, the way a real My List is.
+	const inTheList = 150
+	all := make([]string, inTheList)
+	for i := range all {
+		all[i] = fmt.Sprintf("Title %d", i+1)
+	}
+	var sizes []int
+	stubVaryingGateway(t, func(op string, vars map[string]any) string {
+		if op != "FetchMoreSections" {
+			t.Errorf("unexpected operation %q", op)
+			return "{}"
+		}
+		size := int(vars["carouselPageSize"].(float64))
+		sizes = append(sizes, size)
+		served := all
+		if size < len(served) {
+			served = served[:size]
+		}
+		return sectionsResponse(feedSection(playlistActionID, "Mi lista", inTheList, served...))
+	})
+
+	code, out := runCommand(t, "mylist", "--json")
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d", code, exitOK)
+	}
+	var titles []map[string]any
+	if err := json.Unmarshal([]byte(out), &titles); err != nil {
+		t.Fatalf("decode: %v (%q)", err, out)
+	}
+	if len(titles) != inTheList {
+		t.Errorf("got %d titles, want the whole list of %d", len(titles), inTheList)
+	}
+	if len(sizes) != 2 || sizes[1] != inTheList {
+		t.Errorf("asked with carousel sizes %v, want a second ask for all %d", sizes, inTheList)
+	}
+}
+
+// --limit must not make it ask for more than the caller wants.
+func TestMyListLimitStopsItAskingForTheWholeList(t *testing.T) {
+	stubNetflix(t)
+	var sizes []int
+	stubVaryingGateway(t, func(_ string, vars map[string]any) string {
+		size := int(vars["carouselPageSize"].(float64))
+		sizes = append(sizes, size)
+		return sectionsResponse(feedSection(playlistActionID, "Mi lista", 352, "Dark", "Fariña"))
+	})
+
+	if code, _ := runCommand(t, "mylist", "--limit", "2"); code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	if len(sizes) != 1 || sizes[0] != 2 {
+		t.Errorf("asked with carousel sizes %v, want one ask for 2", sizes)
 	}
 }
 
@@ -187,6 +281,33 @@ func TestUnknownCommandIsAUsageError(t *testing.T) {
 // The rest of the commands go to the GraphQL gateway. Pointing NETFLIX_GRAPHQL_URL
 // at a stub and seeding the query map — which is what a real run caches after
 // its first call — lets those run end to end too.
+// stubVaryingGateway answers each gateway call from the operation and the
+// variables it carries, for the tests where the second request must differ from
+// the first.
+func stubVaryingGateway(t *testing.T, answer func(op string, vars map[string]any) string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read request: %v", err)
+		}
+		var body struct {
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		w.Header().Set("content-type", "application/json")
+		if _, err := w.Write([]byte(answer(r.Header.Get("x-netflix.context.operation-name"), body.Variables))); err != nil {
+			t.Errorf("stub gateway write: %v", err)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("NETFLIX_GRAPHQL_URL", srv.URL)
+
+	seedQueryManifest(t)
+}
+
 func stubGateway(t *testing.T, responses map[string]string) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +326,13 @@ func stubGateway(t *testing.T, responses map[string]string) {
 	t.Cleanup(srv.Close)
 	t.Setenv("NETFLIX_GRAPHQL_URL", srv.URL)
 
+	seedQueryManifest(t)
+}
+
+// seedQueryManifest writes the persisted-query map a real run would scrape from
+// the client bundle, so the stubs are reached without downloading one.
+func seedQueryManifest(t *testing.T) {
+	t.Helper()
 	manifest := `{"build":"v1a09dd61","version":102,"ops":` + stubQueryIDs + `}`
 	path := filepath.Join(os.Getenv("NETFLIX_CONFIG_DIR"), "queries.json")
 	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {

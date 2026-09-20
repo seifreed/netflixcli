@@ -49,11 +49,11 @@ func cmdFeed(feed string) func([]string) error {
 		if err != nil {
 			return err
 		}
-		row, err := cl.Library.Feed(feed)
+		row, err := cl.Library.Feed(feed, *limit)
 		if err != nil {
 			return err
 		}
-		titles := capped(row.Titles, *limit)
+		titles := row.Titles
 		return output(cf, titles, func() {
 			if len(titles) == 0 {
 				fmt.Printf("(%s is empty for this profile)\n", row.Name)

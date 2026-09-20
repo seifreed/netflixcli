@@ -19,6 +19,11 @@ const sectionArtworkParams = `{"imageParamsForStandardBoxart":{"artworkType":"SD
 // about this many.
 const sectionPageSize = 20
 
+// browseCarouselSize is how many titles each row of a browse page carries. It
+// is the web app's own value: a browse row is a preview, and `browse --limit`
+// trims it further. A feed asks for its whole list instead — see Feed.
+const browseCarouselSize = 13
+
 // maxSectionPages bounds the paging, so a cursor that stops advancing cannot
 // loop for ever.
 const maxSectionPages = 10
@@ -98,17 +103,27 @@ func (s *Library) pageID(surface string) (string, error) {
 }
 
 func (s *Library) sectionPage(pageID, cursor string) (rows []Row, next string, more bool, err error) {
-	vars := sectionVars()
-	vars["pageId"] = pageID
-	vars["sectionsAfterCursor"] = optionalString(cursor)
-	vars["sectionCount"] = sectionPageSize
-	vars["carouselPageSize"] = 13
-	vars["fetchHighResCards"] = false
-	vars["eddEnabled"] = false
-	var page pinotPage
-	if err := s.client.GraphQL("FetchMoreSections", vars, &page); err != nil {
+	page, err := s.fetchSections(pageID, cursor, browseCarouselSize)
+	if err != nil {
 		return nil, "", false, err
 	}
 	info := page.Page.Sections.PageInfo
 	return page.rows(), info.EndCursor, info.HasNextPage, nil
+}
+
+// fetchSections asks the page assembler for a slice of a surface's rows.
+// carouselSize is how many titles each of those rows carries.
+func (s *Library) fetchSections(pageID, cursor string, carouselSize int) (pinotPage, error) {
+	vars := sectionVars()
+	vars["pageId"] = pageID
+	vars["sectionsAfterCursor"] = optionalString(cursor)
+	vars["sectionCount"] = sectionPageSize
+	vars["carouselPageSize"] = carouselSize
+	vars["fetchHighResCards"] = false
+	vars["eddEnabled"] = false
+	var page pinotPage
+	if err := s.client.GraphQL("FetchMoreSections", vars, &page); err != nil {
+		return pinotPage{}, err
+	}
+	return page, nil
 }

@@ -38,7 +38,10 @@ type pinotSection struct {
 		Edges []struct {
 			Node pinotEntity `json:"node"`
 		} `json:"edges"`
-		PageInfo connectionPageInfo `json:"pageInfo"`
+		// TotalCount is how long the list really is, whatever carouselPageSize
+		// asked for. Feed uses it to ask again for the rest.
+		TotalCount int                `json:"totalCount"`
+		PageInfo   connectionPageInfo `json:"pageInfo"`
 	} `json:"entities"`
 }
 
@@ -112,6 +115,16 @@ func (s pinotSection) titles() []Title {
 	return out
 }
 
+// row renders one section as the CLI's row model.
+func (s pinotSection) row() Row {
+	return Row{
+		Name:   s.DisplayString,
+		Feed:   s.feed(),
+		Ranked: s.ranked(),
+		Titles: s.titles(),
+	}
+}
+
 // rows returns every section of a fetched page, in page order.
 //
 // It keeps the same rule the page cache does: a personal row survives being
@@ -122,17 +135,11 @@ func (s pinotSection) titles() []Title {
 func (p pinotPage) rows() []Row {
 	rows := make([]Row, 0, len(p.Page.Sections.Edges))
 	for _, edge := range p.Page.Sections.Edges {
-		titles := edge.Node.titles()
-		feed := edge.Node.feed()
-		if len(titles) == 0 && feed == "" {
+		row := edge.Node.row()
+		if len(row.Titles) == 0 && row.Feed == "" {
 			continue
 		}
-		rows = append(rows, Row{
-			Name:   edge.Node.DisplayString,
-			Feed:   feed,
-			Ranked: edge.Node.ranked(),
-			Titles: titles,
-		})
+		rows = append(rows, row)
 	}
 	return rows
 }
