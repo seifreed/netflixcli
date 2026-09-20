@@ -13,6 +13,8 @@
   <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/seifreed/netflixcli?style=flat-square&logo=go&logoColor=white" alt="Go Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://github.com/seifreed/netflixcli/actions"><img src="https://img.shields.io/github/actions/workflow/status/seifreed/netflixcli/ci.yml?style=flat-square&logo=github&label=CI" alt="CI Status"></a>
+  <a href="https://github.com/seifreed/netflixcli/releases/latest"><img src="https://img.shields.io/github/v/release/seifreed/netflixcli?style=flat-square&logo=github&label=release" alt="Latest Release"></a>
+  <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-blue?style=flat-square" alt="Platforms"></a>
   <a href="https://github.com/seifreed/netflixcli/security/code-scanning"><img src="https://img.shields.io/badge/code%20scanning-SARIF%20enabled-brightgreen?style=flat-square" alt="SARIF"></a>
 </p>
 
