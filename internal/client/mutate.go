@@ -29,9 +29,16 @@ type entityEnvelope struct {
 	} `json:"errors"`
 }
 
-func (e entityEnvelope) state() (EntityState, error) {
+// state reads the entity a write answered with. videoID is the title that was
+// asked about, for the message when nothing came back: Netflix answers an
+// unknown title with an empty entity and no error, which used to be reported as
+// a successful change to a title with no name.
+func (e entityEnvelope) state(videoID int) (EntityState, error) {
 	if len(e.Errors) > 0 {
 		return EntityState{}, fmt.Errorf("netflix refused the change: %s", e.Errors[0].Message)
+	}
+	if e.Entity.VideoID == 0 {
+		return EntityState{}, fmt.Errorf("netflix did not accept a change to title %d — it may not exist in this region", videoID)
 	}
 	return EntityState{
 		ID:          e.Entity.VideoID,
@@ -77,7 +84,7 @@ func (s *Library) playlistMutation(op, field string, videoID int) (EntityState, 
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return EntityState{}, fmt.Errorf("decode %s result: %w", op, err)
 	}
-	return env.state()
+	return env.state(videoID)
 }
 
 // thumbRatings maps the CLI's rating words to Netflix's enum.
@@ -114,7 +121,7 @@ func (s *Library) Rate(videoID int, rating string) (EntityState, error) {
 	}, &resp); err != nil {
 		return EntityState{}, err
 	}
-	return resp.SetEntityThumbRating.state()
+	return resp.SetEntityThumbRating.state(videoID)
 }
 
 // AddReminder asks Netflix to remind this profile when a title arrives.
@@ -145,7 +152,7 @@ func (s *Library) reminderMutation(op, field string, videoID int) (EntityState, 
 	if env.Entity.VideoID == 0 {
 		return EntityState{}, fmt.Errorf("netflix did not accept a reminder for title %d (it may already be available)", videoID)
 	}
-	return env.state()
+	return env.state(videoID)
 }
 
 // RemoveFromContinueWatching drops a title from the profile's Continue Watching

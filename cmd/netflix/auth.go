@@ -58,7 +58,7 @@ func cmdImportHar(args []string) error {
 	file := fs.String("file", "", "path to the .har export ('-' for stdin)")
 	parseFlags(fs, args)
 	if *file == "" {
-		return fmt.Errorf("usage: netflix import-har --file netflix.har")
+		return usagef("usage: netflix import-har --file netflix.har")
 	}
 	data, err := readHAROrStdin(*file)
 	if err != nil {
@@ -94,7 +94,7 @@ func cmdSetCookie(args []string) error {
 		rawCookie = strings.Join(fs.Args(), " ")
 	}
 	if rawCookie == "" {
-		return fmt.Errorf("usage: netflix set-cookie '<cookie header>'  (or --stdin)")
+		return usagef("usage: netflix set-cookie '<cookie header>'  (or --stdin)")
 	}
 	s := session.LoadSession()
 	s.Cookie = rawCookie

@@ -145,6 +145,18 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
+// usageError is a command rejecting how it was called, before doing any work.
+// main exits 2 for it — "the invocation was wrong" — rather than 1, which means
+// the command ran and failed.
+type usageError struct{ err error }
+
+func (e usageError) Error() string { return e.err.Error() }
+func (e usageError) Unwrap() error { return e.err }
+
+func usagef(format string, args ...any) error {
+	return usageError{fmt.Errorf(format, args...)}
+}
+
 // optionalOperand returns the command's positional argument, joined and
 // trimmed, or "" when it was not given.
 func optionalOperand(fs *flag.FlagSet) string {
@@ -157,7 +169,7 @@ func optionalOperand(fs *flag.FlagSet) string {
 func operand(fs *flag.FlagSet, usage string) (string, error) {
 	value := optionalOperand(fs)
 	if value == "" {
-		return "", fmt.Errorf("usage: %s", usage)
+		return "", usagef("usage: %s", usage)
 	}
 	return value, nil
 }
@@ -169,5 +181,9 @@ func titleOperand(fs *flag.FlagSet, usage string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return client.ParseTitleID(raw)
+	id, err := client.ParseTitleID(raw)
+	if err != nil {
+		return 0, usageError{err} // an operand the CLI cannot read is a wrong call
+	}
+	return id, nil
 }

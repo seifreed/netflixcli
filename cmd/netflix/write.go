@@ -57,7 +57,7 @@ func cmdRate(args []string) error {
 	parseFlags(fs, args)
 	rest := fs.Args()
 	if len(rest) < 2 {
-		return fmt.Errorf("usage: netflix rate <id|url> up|down|love|none")
+		return usagef("usage: netflix rate <id|url> up|down|love|none")
 	}
 	id, err := client.ParseTitleID(rest[0])
 	if err != nil {

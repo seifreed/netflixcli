@@ -1,6 +1,9 @@
 package client
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // maxSeasonsFetched bounds the seasons asked for in one request; no Netflix show
 // comes close.
@@ -115,14 +118,26 @@ func (s *Catalog) Seasons(showID int) ([]Season, error) {
 		"showId":      showID,
 		"seasonCount": maxSeasonsFetched,
 	}, &resp); err != nil {
+		if isNotFound(err) {
+			return nil, fmt.Errorf("netflix has no title %d in this region", showID)
+		}
 		return nil, err
 	}
-	if len(resp.Videos) == 0 {
+	// A title that does not exist comes back as an entry with nothing in it, so
+	// it has to be told from a real title that simply has no seasons — which
+	// used to read "title 999999999 is a , not a show with seasons".
+	if len(resp.Videos) == 0 || resp.Videos[0].VideoID == 0 {
 		return nil, fmt.Errorf("netflix has no title %d in this region", showID)
 	}
 	video := resp.Videos[0]
 	if len(video.Seasons.Edges) == 0 {
-		return nil, fmt.Errorf("title %d is a %s, not a show with seasons", showID, video.TypeName)
+		kind := strings.ToLower(video.TypeName)
+		if kind == "" {
+			kind = "not a show"
+		} else {
+			kind = "a " + kind
+		}
+		return nil, fmt.Errorf("title %d is %s, so it has no seasons", showID, kind)
 	}
 	seasons := make([]Season, 0, len(video.Seasons.Edges))
 	for i, edge := range video.Seasons.Edges {

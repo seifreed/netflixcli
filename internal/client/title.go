@@ -192,6 +192,9 @@ func (s *Catalog) Detail(videoID int) (TitleDetail, error) {
 		UnifiedEntities []detailEntity `json:"unifiedEntities"`
 	}
 	if err := s.client.GraphQL("DetailModal", vars, &resp); err != nil {
+		if isNotFound(err) {
+			return TitleDetail{}, fmt.Errorf("netflix has no title %d in this region", videoID)
+		}
 		return TitleDetail{}, err
 	}
 	if len(resp.UnifiedEntities) == 0 {

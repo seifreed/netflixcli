@@ -442,11 +442,13 @@ func TestTitleRendersTheCertificationNotTheMaturityNumber(t *testing.T) {
 	}
 }
 
+// A command called wrongly exits 2, which is what main's table of exit codes
+// promises; 1 means the command ran and failed.
 func TestTitleRejectsAnOperandThatIsNotAnID(t *testing.T) {
 	stubNetflix(t)
 	code, _ := runCommand(t, "title", "not-an-id")
-	if code != exitError {
-		t.Errorf("exit code = %d, want %d", code, exitError)
+	if code != exitUsage {
+		t.Errorf("exit code = %d, want %d", code, exitUsage)
 	}
 }
 
@@ -605,8 +607,8 @@ func TestSetCookieStoresTheSession(t *testing.T) {
 func TestSetCookieRejectsAnEmptyCookie(t *testing.T) {
 	stubNetflix(t)
 	code, _ := runCommand(t, "set-cookie")
-	if code != exitError {
-		t.Errorf("exit code = %d, want %d", code, exitError)
+	if code != exitUsage {
+		t.Errorf("exit code = %d, want %d", code, exitUsage)
 	}
 }
 
@@ -636,8 +638,8 @@ func TestImportHarTakesTheSignedInRequest(t *testing.T) {
 func TestImportHarNeedsAFile(t *testing.T) {
 	stubNetflix(t)
 	code, _ := runCommand(t, "import-har")
-	if code != exitError {
-		t.Errorf("exit code = %d, want %d", code, exitError)
+	if code != exitUsage {
+		t.Errorf("exit code = %d, want %d", code, exitUsage)
 	}
 }
 

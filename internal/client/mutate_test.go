@@ -1,6 +1,9 @@
 package client
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseThumbRating(t *testing.T) {
 	cases := []struct{ word, want string }{
@@ -33,8 +36,22 @@ func TestEntityEnvelopeSurfacesNetflixErrors(t *testing.T) {
 	env.Errors = append(env.Errors, struct {
 		Message string `json:"message"`
 	}{Message: "not allowed"})
-	if _, err := env.state(); err == nil {
+	if _, err := env.state(70095139); err == nil {
 		t.Fatal("want an error when Netflix reports one in the payload")
+	}
+}
+
+// Netflix answers a write against a title it does not have with an empty entity
+// and no error. `mylist add 999999999` used to print " is no longer in My List"
+// and exit 0.
+func TestEntityEnvelopeRejectsAnEmptyEntity(t *testing.T) {
+	var env entityEnvelope
+	_, err := env.state(999999999)
+	if err == nil {
+		t.Fatal("want an error when netflix acknowledged no entity")
+	}
+	if !strings.Contains(err.Error(), "999999999") {
+		t.Errorf("error %q does not name the title that was asked about", err)
 	}
 }
 
@@ -43,7 +60,7 @@ func TestEntityEnvelopeState(t *testing.T) {
 	env.Entity.VideoID = 70095139
 	env.Entity.Title = "Shutter Island"
 	env.Entity.IsInPlaylist = true
-	got, err := env.state()
+	got, err := env.state(70095139)
 	if err != nil {
 		t.Fatalf("state: %v", err)
 	}

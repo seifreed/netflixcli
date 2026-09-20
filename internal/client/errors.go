@@ -47,6 +47,13 @@ func httpStatus(err error) (status int, ok bool) {
 	return 0, false
 }
 
+// isNotFound reports whether the gateway answered that the thing asked for does
+// not exist, rather than failing for some other reason.
+func isNotFound(err error) bool {
+	var ge *GraphQLError
+	return errors.As(err, &ge) && ge.Extensions.ErrorType == "NOT_FOUND"
+}
+
 // ErrNoSession is returned before any request when no cookie is configured.
 var ErrNoSession = errors.New("no Netflix session — run `netflix login --from-browser chrome` first")
 

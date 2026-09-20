@@ -10,6 +10,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -56,6 +57,10 @@ func run(args []string) int {
 	}
 	if err := cmd.run(rest); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
+		var usage usageError
+		if errors.As(err, &usage) {
+			return exitUsage
+		}
 		return exitError
 	}
 	return exitOK
