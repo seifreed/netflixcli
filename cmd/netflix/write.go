@@ -155,3 +155,25 @@ func yesNo(b bool) string {
 	}
 	return "no"
 }
+
+// runMyList and runContinue exist because `mylist` and `continue` are both a
+// listing and the entry point to a write; the command table documents each
+// subcommand on its own row.
+func runMyList(args []string) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "add":
+			return cmdMyListAdd(args[1:])
+		case "remove", "rm":
+			return cmdMyListRemove(args[1:])
+		}
+	}
+	return cmdFeed(client.FeedMyList)(args)
+}
+
+func runContinue(args []string) error {
+	if len(args) > 0 && (args[0] == "remove" || args[0] == "rm") {
+		return cmdContinueRemove(args[1:])
+	}
+	return cmdFeed(client.FeedContinueWatching)(args)
+}
