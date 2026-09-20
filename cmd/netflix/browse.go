@@ -76,14 +76,18 @@ func printRows(rows []client.Row) {
 	}
 }
 
+// capRows caps every row's titles. Like capTitles it leaves the caller's rows
+// alone, so a capped view cannot be mistaken for the whole one.
 func capRows(rows []client.Row, limit int) []client.Row {
 	if limit <= 0 {
 		return rows
 	}
-	for i := range rows {
-		rows[i].Titles = capTitles(rows[i].Titles, limit)
+	capped := make([]client.Row, len(rows))
+	for i, row := range rows {
+		row.Titles = capTitles(row.Titles, limit)
+		capped[i] = row
 	}
-	return rows
+	return capped
 }
 
 func capTitles(titles []client.Title, limit int) []client.Title {

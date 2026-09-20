@@ -123,15 +123,14 @@ func (c *Client) do(req *http.Request) ([]byte, error) {
 	defer resp.Body.Close()
 	data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		apiErr := &APIError{
+		if rejectsSession(resp.StatusCode) {
+			return nil, fmt.Errorf("%w (HTTP %d)", ErrSessionRejected, resp.StatusCode)
+		}
+		return nil, &APIError{
 			Status:     resp.StatusCode,
 			Body:       string(data),
 			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
 		}
-		if rejectsSession(resp.StatusCode) {
-			return nil, fmt.Errorf("%w (HTTP %d)", ErrSessionRejected, resp.StatusCode)
-		}
-		return nil, apiErr
 	}
 	if readErr != nil {
 		return nil, fmt.Errorf("read response body from %s: %w", req.URL, readErr)

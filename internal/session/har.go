@@ -38,29 +38,30 @@ func ParseHAR(data []byte) (Session, error) {
 	}
 
 	var s Session
-	var sawReq, sawCookie, sawAnyCookie string
+	var sawRequest, sawCookieHeader bool
+	var freshestCookie string
 	for _, e := range har.Log.Entries {
 		u, perr := neturl.Parse(e.Request.URL)
 		if perr != nil || !strings.EqualFold(u.Scheme, "https") || !cookie.IsNetflixHost(u.Hostname()) {
 			continue
 		}
-		sawReq = "y"
+		sawRequest = true
 		for _, h := range e.Request.Headers {
 			if !strings.EqualFold(h.Name, "cookie") {
 				continue
 			}
-			sawCookie = "y"
-			sawAnyCookie = h.Value // freshest cookie header, authed or not
+			sawCookieHeader = true
+			freshestCookie = h.Value // freshest cookie header, authed or not
 			if cookie.LooksAuthenticated(h.Value) {
 				s.Cookie = h.Value // last (freshest) session-bearing request wins
 			}
 		}
 	}
 	if s.Cookie == "" {
-		s.Cookie = sawAnyCookie // accept a cookie without NetflixId rather than nothing
+		s.Cookie = freshestCookie // accept a cookie without NetflixId rather than nothing
 	}
 	if s.Cookie == "" {
-		return s, harNoCookieErr(sawReq != "", sawCookie != "")
+		return s, harNoCookieErr(sawRequest, sawCookieHeader)
 	}
 	return s, nil
 }

@@ -83,7 +83,8 @@ func (s *Library) surfaceCache(surface string) (apolloCache, error) {
 // retried once before it is reported: a single reload has been enough every
 // time it has been observed.
 func (s *Library) Feed(feed string) (Row, error) {
-	for attempt := 0; attempt < 2; attempt++ {
+	const attempts = 2
+	for attempt := 1; attempt <= attempts; attempt++ {
 		rows, err := s.Browse(SurfaceMyNetflix)
 		if err != nil {
 			return Row{}, err
@@ -93,7 +94,9 @@ func (s *Library) Feed(feed string) (Row, error) {
 				return row, nil
 			}
 		}
-		s.client.logf("netflix rendered My Netflix without the %q row — reloading", feed)
+		if attempt < attempts {
+			s.client.logf("netflix rendered My Netflix without the %q row — reloading", feed)
+		}
 	}
 	return Row{}, fmt.Errorf("netflix did not render a %q row for this profile", feed)
 }

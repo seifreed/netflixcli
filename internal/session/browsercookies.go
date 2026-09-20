@@ -16,8 +16,6 @@ import (
 // pull just the site's cookies out of a browser's (large) cookie store.
 const cookieDomain = "netflix.com"
 
-type nameVal struct{ name, val string }
-
 type browserCookie struct {
 	browser string
 	name    string
@@ -99,12 +97,7 @@ func pickSessionCookie(cookies []browserCookie, want string) (string, bool) {
 	}
 	var fallback string
 	for _, bname := range storeOrder {
-		store := stores[bname]
-		pairs := make([]nameVal, 0, len(store))
-		for name, value := range store {
-			pairs = append(pairs, nameVal{name, value})
-		}
-		header := buildCookieHeader(pairs)
+		header := buildCookieHeader(stores[bname])
 		if cookie.LooksAuthenticated(header) {
 			return header, true
 		}
@@ -115,15 +108,18 @@ func pickSessionCookie(cookies []browserCookie, want string) (string, bool) {
 	return fallback, fallback != ""
 }
 
-// buildCookieHeader renders cookie name/value pairs as "n1=v1; n2=v2", sorted for
-// a deterministic result.
-func buildCookieHeader(pairs []nameVal) string {
-	sorted := append([]nameVal(nil), pairs...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].name < sorted[j].name })
-	parts := make([]string, 0, len(sorted))
-	for _, p := range sorted {
-		if cookie.ValidPair(p.name, p.val) {
-			parts = append(parts, p.name+"="+p.val)
+// buildCookieHeader renders one store's cookies as "n1=v1; n2=v2", sorted by
+// name so the result is deterministic.
+func buildCookieHeader(store map[string]string) string {
+	names := make([]string, 0, len(store))
+	for name := range store {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		if cookie.ValidPair(name, store[name]) {
+			parts = append(parts, name+"="+store[name])
 		}
 	}
 	return strings.Join(parts, "; ")
