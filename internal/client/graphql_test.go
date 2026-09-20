@@ -145,3 +145,58 @@ func TestNewUUIDIsVersion4(t *testing.T) {
 		t.Error("two uuids must differ")
 	}
 }
+
+// Netflix throttles the gateway as it throttles the site. A page fetch backed
+// off and recovered; the gateway gave up on the first 429, and the gateway is
+// the busier path — a feed, a season and `browse --all` are several requests.
+func TestGraphQLBacksOffWhenThrottled(t *testing.T) {
+	calls := 0
+	c := graphQLClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls < 3 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		// A retry must carry the body again, not an already-read one.
+		raw, err := io.ReadAll(r.Body)
+		if err != nil || len(raw) == 0 {
+			t.Errorf("retry sent an empty body (%v)", err)
+		}
+		if _, err := w.Write([]byte(`{"data":{"answer":42}}`)); err != nil {
+			t.Errorf("stub write: %v", err)
+		}
+	})
+	var out struct {
+		Answer int `json:"answer"`
+	}
+	if err := c.GraphQL("DemoQuery", map[string]any{"q": "dark"}, &out); err != nil {
+		t.Fatalf("GraphQL: %v", err)
+	}
+	if calls != 3 {
+		t.Errorf("made %d requests, want two retries then the answer", calls)
+	}
+	if out.Answer != 42 {
+		t.Errorf("answer = %d, want the retried request to have been decoded", out.Answer)
+	}
+}
+
+// It must not retry for ever: past the budget the throttling is the answer.
+func TestGraphQLGivesUpAfterTheRetryBudget(t *testing.T) {
+	calls := 0
+	c := graphQLClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	err := c.GraphQL("DemoQuery", nil, nil)
+	if err == nil {
+		t.Fatal("want an error once the retries are spent")
+	}
+	if status, ok := httpStatus(err); !ok || status != http.StatusTooManyRequests {
+		t.Errorf("error = %v, want it to carry the 429", err)
+	}
+	if calls != maxRetries+1 {
+		t.Errorf("made %d requests, want %d", calls, maxRetries+1)
+	}
+}

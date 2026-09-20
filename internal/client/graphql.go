@@ -56,11 +56,13 @@ func (c *Client) GraphQL(op string, variables map[string]any, out any) error {
 	if err != nil {
 		return fmt.Errorf("encode %s variables: %w", op, err)
 	}
-	req, err := c.newGraphQLRequest(op, body)
-	if err != nil {
-		return err
-	}
-	raw, err := c.do(req)
+	raw, err := c.retrying(op, func() ([]byte, error) {
+		req, err := c.newGraphQLRequest(op, body)
+		if err != nil {
+			return nil, err
+		}
+		return c.do(req)
+	})
 	if err != nil {
 		return err
 	}
@@ -125,7 +127,7 @@ func (c *Client) locale() string {
 	if l := strings.TrimSpace(c.Lang); l != "" {
 		return l
 	}
-	return "es-ES"
+	return defaultLang
 }
 
 // randomBytes returns n cryptographically random bytes. crypto/rand.Read has

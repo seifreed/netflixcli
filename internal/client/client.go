@@ -33,6 +33,8 @@ import (
 const (
 	// BaseURL is the public site host.
 	BaseURL = "https://www.netflix.com"
+	// defaultLang is the UI language used when none is configured.
+	defaultLang = "es-ES"
 	// DefaultUA mirrors a current desktop Chrome so requests look like the web app.
 	DefaultUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
 )
@@ -87,7 +89,7 @@ func (c *Client) logf(format string, args ...any) {
 // back to the stdlib transport.
 func New() *Client {
 	hc := &http.Client{Timeout: 30 * time.Second}
-	c := &Client{HTTP: hc, BaseURL: BaseURL, GraphQLURL: GraphQLEndpoint, UserAgent: DefaultUA, Lang: "es-ES"}
+	c := &Client{HTTP: hc, BaseURL: BaseURL, GraphQLURL: GraphQLEndpoint, UserAgent: DefaultUA, Lang: defaultLang}
 	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) > 0 && cookie.ValidHeader(c.Cookie) && trustedCookieRequest(via[0].URL.String()) {
 			initial := via[0].URL
@@ -156,18 +158,14 @@ func (c *Client) getText(rawURL string) (string, error) {
 		}
 		return html, nil
 	}
-	backoff := defaultRetryBase
-	for attempt := 0; ; attempt++ {
-		s, err := c.getOnce(rawURL)
-		if !isRateLimited(err) || attempt >= maxRetries {
-			return s, err
+	data, err := c.retrying(rawURL, func() ([]byte, error) {
+		req, err := c.newReq("GET", rawURL, nil)
+		if err != nil {
+			return nil, err
 		}
-		wait := retryWait(err, backoff)
-		status, _ := httpStatus(err)
-		c.logf("throttled: HTTP %d on %s — retrying %d/%d in %s", status, rawURL, attempt+1, maxRetries, wait.Round(time.Millisecond))
-		time.Sleep(wait)
-		backoff *= 2
-	}
+		return c.do(req)
+	})
+	return string(data), err
 }
 
 func (c *Client) sameOrigin(raw string) bool {
@@ -182,14 +180,24 @@ func (c *Client) sameOrigin(raw string) bool {
 	return strings.EqualFold(base.Scheme, target.Scheme) && strings.EqualFold(base.Host, target.Host)
 }
 
-func (c *Client) getOnce(rawURL string) (string, error) {
-	req, err := c.newReq("GET", rawURL, nil)
-	if err != nil {
-		return "", err
+// retrying sends a request, and sends it again while Netflix answers that it is
+// being asked too often. send builds the request each time, because a retry
+// cannot reuse a body that has already been read.
+//
+// Both paths go through this. The gateway used to fail on the first 429 while a
+// page fetch backed off and recovered, and the gateway is the busier of the two:
+// a feed, a season and a browse --all are several requests each.
+func (c *Client) retrying(what string, send func() ([]byte, error)) ([]byte, error) {
+	backoff := defaultRetryBase
+	for attempt := 0; ; attempt++ {
+		data, err := send()
+		if !isRateLimited(err) || attempt >= maxRetries {
+			return data, err
+		}
+		wait := retryWait(err, backoff)
+		status, _ := httpStatus(err)
+		c.logf("throttled: HTTP %d on %s — retrying %d/%d in %s", status, what, attempt+1, maxRetries, wait.Round(time.Millisecond))
+		time.Sleep(wait)
+		backoff *= 2
 	}
-	data, err := c.do(req)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }

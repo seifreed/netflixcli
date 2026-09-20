@@ -35,7 +35,10 @@ func TestAcceptLanguage(t *testing.T) {
 	for lang, want := range map[string]string{
 		"":      "es-ES,es;q=0.9,en;q=0.8",
 		"es-ES": "es-ES,es;q=0.9,en;q=0.8",
-		"en":    "en;q=0.9,en;q=0.8",
+		"pt-BR": "pt-BR,pt;q=0.9,en;q=0.8",
+		// A tag must not appear twice with two different weights.
+		"en":    "en",
+		"en-GB": "en-GB,en;q=0.9",
 	} {
 		c := &Client{Lang: lang}
 		if got := c.acceptLanguage(); got != want {

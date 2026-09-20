@@ -28,16 +28,36 @@ func (c *Client) newReq(method, rawURL string, body io.Reader) (*http.Request, e
 	return req, nil
 }
 
+// acceptLanguage asks for the configured language, then its base, then English,
+// each once and in descending preference. Listing a tag twice — which is what
+// `--lang en` and `--lang en-GB` used to produce — is not a language a server
+// can weigh.
 func (c *Client) acceptLanguage() string {
 	lang := strings.TrimSpace(c.Lang)
 	if lang == "" {
-		lang = "es-ES"
+		lang = defaultLang
 	}
-	base, _, _ := strings.Cut(lang, "-")
-	if base == lang {
-		return fmt.Sprintf("%s;q=0.9,en;q=0.8", lang)
+	tags := []string{lang}
+	if base, _, hasRegion := strings.Cut(lang, "-"); hasRegion && !listsTag(tags, base) {
+		tags = append(tags, base)
 	}
-	return fmt.Sprintf("%s,%s;q=0.9,en;q=0.8", lang, base)
+	if !listsTag(tags, "en") {
+		tags = append(tags, "en")
+	}
+	header := tags[0]
+	for i, tag := range tags[1:] {
+		header += fmt.Sprintf(",%s;q=0.%d", tag, 9-i)
+	}
+	return header
+}
+
+func listsTag(tags []string, want string) bool {
+	for _, tag := range tags {
+		if strings.EqualFold(tag, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func trustedCookieRequest(rawURL string) bool {
