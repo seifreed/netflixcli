@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/seifreed/netflixcli/internal/cookie"
 )
 
 // GraphQLEndpoint is the gateway the Netflix web app queries. It is a separate
@@ -99,7 +101,16 @@ func (c *Client) newGraphQLRequest(op string, body []byte) (*http.Request, error
 	req.Header.Set("accept-language", c.acceptLanguage())
 	req.Header.Set("origin", BaseURL)
 	req.Header.Set("referer", BaseURL+"/")
-	req.Header.Set("cookie", c.Cookie)
+	// The session cookie goes only where the page path would send it: over
+	// HTTPS, to a Netflix host. NETFLIX_GRAPHQL_URL may name any endpoint, and
+	// a cookie carrying the whole account must not follow it off-site.
+	if trustedCookieRequest(endpoint) && cookie.ValidHeader(c.Cookie) {
+		req.Header.Set("cookie", c.Cookie)
+	} else {
+		c.warnGatewayOnce.Do(func() {
+			c.logf("gateway %s is not an https netflix.com endpoint — sending requests to it without the session cookie", endpoint)
+		})
+	}
 	req.Header.Set("x-netflix.context.app-version", ctx.BuildID)
 	req.Header.Set("x-netflix.context.locales", c.locale())
 	req.Header.Set("x-netflix.context.operation-name", op)

@@ -2,9 +2,11 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -59,8 +61,52 @@ func TestGraphQLSendsPersistedOperation(t *testing.T) {
 	if headers.Get("x-netflix.context.app-version") != "v1a09dd61" {
 		t.Errorf("app-version header = %q, want the build id", headers.Get("x-netflix.context.app-version"))
 	}
-	if headers.Get("cookie") != "NetflixId=secret" {
-		t.Error("the gateway request must carry the session cookie")
+	// The cookie is asserted in TestGatewayCookieGoesOnlyToNetflix: this stub is
+	// plain HTTP on localhost, which is exactly where it must not go.
+}
+
+// The session cookie carries the whole account. It goes to the real gateway and
+// nowhere else — NETFLIX_GRAPHQL_URL can name any host, including one that is
+// not Netflix and not even HTTPS.
+func TestGatewayCookieGoesOnlyToNetflix(t *testing.T) {
+	for endpoint, want := range map[string]bool{
+		GraphQLEndpoint:                        true,
+		"https://web.prod.cloud.netflix.com/g": true,
+		"http://web.prod.cloud.netflix.com/g":  false, // downgraded to cleartext
+		"https://evil.example/graphql":         false, // not Netflix
+		"http://127.0.0.1:9999/graphql":        false, // a local proxy or mock
+		"https://netflix.com.evil.example/g":   false, // lookalike host
+	} {
+		c := graphQLClient(t, func(http.ResponseWriter, *http.Request) {})
+		c.GraphQLURL = endpoint
+		req, err := c.newGraphQLRequest("DemoQuery", []byte("{}"))
+		if err != nil {
+			t.Fatalf("newGraphQLRequest(%q): %v", endpoint, err)
+		}
+		if got := req.Header.Get("cookie") != ""; got != want {
+			t.Errorf("%s carried the cookie = %v, want %v", endpoint, got, want)
+		}
+	}
+}
+
+// An endpoint the cookie cannot go to must say so, not fail later as a refused
+// session.
+func TestUntrustedGatewayIsReported(t *testing.T) {
+	var logged []string
+	c := graphQLClient(t, func(http.ResponseWriter, *http.Request) {})
+	c.Logf = func(format string, args ...any) { logged = append(logged, fmt.Sprintf(format, args...)) }
+	c.GraphQLURL = "http://127.0.0.1:9999/graphql"
+
+	for i := 0; i < 3; i++ {
+		if _, err := c.newGraphQLRequest("DemoQuery", []byte("{}")); err != nil {
+			t.Fatalf("newGraphQLRequest: %v", err)
+		}
+	}
+	if len(logged) != 1 {
+		t.Fatalf("logged %d warnings, want exactly one: %v", len(logged), logged)
+	}
+	if !strings.Contains(logged[0], "without the session cookie") {
+		t.Errorf("warning %q does not say the cookie was withheld", logged[0])
 	}
 }
 

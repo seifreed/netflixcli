@@ -63,10 +63,11 @@ type Client struct {
 	Library *Library
 	Account *Account
 
-	ctx          *shaktiContext // page bootstrap: build id, bundle URL, who is signed in
-	queries      *queryManifest // persisted GraphQL query ids for that build
-	transportErr error
-	warnOnce     sync.Once
+	ctx             *shaktiContext // page bootstrap: build id, bundle URL, who is signed in
+	queries         *queryManifest // persisted GraphQL query ids for that build
+	transportErr    error
+	warnOnce        sync.Once
+	warnGatewayOnce sync.Once
 }
 
 // SetFetcher routes page loads through a caller-provided renderer, such as an
