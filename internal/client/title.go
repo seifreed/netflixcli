@@ -170,7 +170,7 @@ func ParseTitleID(raw string) (int, error) {
 
 // Detail fetches one title's full record, the same query the web app runs when
 // a title page opens.
-func (c *Client) Detail(videoID int) (TitleDetail, error) {
+func (s *Catalog) Detail(videoID int) (TitleDetail, error) {
 	vars := detailImageVars("ODP")
 	vars["unifiedEntityId"] = entityID(videoID)
 	vars["videoId"] = videoID
@@ -178,7 +178,7 @@ func (c *Client) Detail(videoID int) (TitleDetail, error) {
 	var resp struct {
 		UnifiedEntities []detailEntity `json:"unifiedEntities"`
 	}
-	if err := c.GraphQL("DetailModal", vars, &resp); err != nil {
+	if err := s.client.GraphQL("DetailModal", vars, &resp); err != nil {
 		return TitleDetail{}, err
 	}
 	if len(resp.UnifiedEntities) == 0 {
@@ -189,7 +189,7 @@ func (c *Client) Detail(videoID int) (TitleDetail, error) {
 
 // Details fetches several titles in one request, the way the web app populates
 // a row of cards. Titles Netflix does not return are silently absent.
-func (c *Client) Details(videoIDs []int) ([]TitleDetail, error) {
+func (s *Catalog) Details(videoIDs []int) ([]TitleDetail, error) {
 	if len(videoIDs) == 0 {
 		return nil, nil
 	}
@@ -202,7 +202,7 @@ func (c *Client) Details(videoIDs []int) ([]TitleDetail, error) {
 	var resp struct {
 		UnifiedEntities []detailEntity `json:"unifiedEntities"`
 	}
-	if err := c.GraphQL("MiniModalQuery", vars, &resp); err != nil {
+	if err := s.client.GraphQL("MiniModalQuery", vars, &resp); err != nil {
 		return nil, err
 	}
 	out := make([]TitleDetail, 0, len(resp.UnifiedEntities))

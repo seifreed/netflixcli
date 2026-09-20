@@ -51,7 +51,7 @@ func TitleURL(id int) string { return fmt.Sprintf("%s/title/%d", BaseURL, id) }
 // Search queries the catalogue the way the web app's search page does, paging
 // the result gallery until it has limit titles or Netflix runs out. limit 0
 // returns the first page.
-func (c *Client) Search(query string, limit int) ([]Title, error) {
+func (s *Catalog) Search(query string, limit int) ([]Title, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("search needs a query")
@@ -71,7 +71,7 @@ func (c *Client) Search(query string, limit int) ([]Title, error) {
 		"session":          map[string]any{"id": newUUID()},
 	}
 	var page pinotPage
-	if err := c.GraphQL("SearchPageQueryResults", vars, &page); err != nil {
+	if err := s.client.GraphQL("SearchPageQueryResults", vars, &page); err != nil {
 		return nil, err
 	}
 	gallery, ok := page.gallerySection()
@@ -96,7 +96,7 @@ func (c *Client) Search(query string, limit int) ([]Title, error) {
 	appendPage(gallery)
 
 	for limit > len(titles) && gallery.Entities.PageInfo.HasNextPage && gallery.ID != "" {
-		next, err := c.searchPage(gallery.ID, gallery.Entities.PageInfo.EndCursor, pageSize)
+		next, err := s.searchPage(gallery.ID, gallery.Entities.PageInfo.EndCursor, pageSize)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +114,7 @@ func (c *Client) Search(query string, limit int) ([]Title, error) {
 
 // searchPage fetches the next slice of a result gallery, the way the search
 // page does when the user scrolls to the end of it.
-func (c *Client) searchPage(galleryID, cursor string, pageSize int) (pinotSection, error) {
+func (s *Catalog) searchPage(galleryID, cursor string, pageSize int) (pinotSection, error) {
 	vars := artworkParams()
 	vars["galleryId"] = galleryID
 	vars["endCursor"] = cursor
@@ -124,7 +124,7 @@ func (c *Client) searchPage(galleryID, cursor string, pageSize int) (pinotSectio
 	var resp struct {
 		Node pinotSection `json:"node"`
 	}
-	if err := c.GraphQL("FetchMoreSearchGalleryItems", vars, &resp); err != nil {
+	if err := s.client.GraphQL("FetchMoreSearchGalleryItems", vars, &resp); err != nil {
 		return pinotSection{}, err
 	}
 	return resp.Node, nil

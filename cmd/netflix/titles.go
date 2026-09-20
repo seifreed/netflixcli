@@ -21,14 +21,14 @@ func cmdTitle(args []string) error {
 	if err != nil {
 		return err
 	}
-	detail, err := cl.Detail(id)
+	detail, err := cl.Catalog.Detail(id)
 	if err != nil {
 		return err
 	}
 	if !*similar || len(detail.Similar) == 0 {
 		return output(cf, detail, func() { printDetail(detail) })
 	}
-	similars, err := cl.Details(detail.Similar)
+	similars, err := cl.Catalog.Details(detail.Similar)
 	if err != nil {
 		return err
 	}

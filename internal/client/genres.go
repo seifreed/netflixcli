@@ -19,7 +19,7 @@ type Genre struct {
 // Genres lists the genres this account's region offers, sorted by title. They
 // are what makes `browse <genre>` usable: Netflix never shows these ids in the
 // UI.
-func (c *Client) Genres() ([]Genre, error) {
+func (s *Catalog) Genres() ([]Genre, error) {
 	var resp struct {
 		Categories []struct {
 			ID    string `json:"id"`
@@ -28,7 +28,7 @@ func (c *Client) Genres() ([]Genre, error) {
 	}
 	// The input takes no fields: the menu is decided by the session's region
 	// and profile.
-	if err := c.GraphQL("GetGenreSubgenres", map[string]any{"options": map[string]any{}}, &resp); err != nil {
+	if err := s.client.GraphQL("GetGenreSubgenres", map[string]any{"options": map[string]any{}}, &resp); err != nil {
 		return nil, err
 	}
 	genres := make([]Genre, 0, len(resp.Categories))

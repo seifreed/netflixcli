@@ -33,7 +33,7 @@ func cmdLogin(args []string) error {
 	if err != nil {
 		return err
 	}
-	user, probeErr := cl.Whoami()
+	user, probeErr := cl.Account.Whoami()
 	if err := output(cf, loginResult(s, user, probeErr), func() { printUser(user) }); err != nil {
 		return err
 	}
@@ -123,8 +123,8 @@ func cmdWhoami(args []string) error {
 	if err != nil {
 		return err
 	}
-	user, whoamiErr := cl.Whoami()
-	profile, _ := cl.CurrentProfile() // free once Whoami has bootstrapped
+	user, whoamiErr := cl.Account.Whoami()
+	profile, _ := cl.Account.CurrentProfile() // free once Whoami has bootstrapped
 	report := map[string]any{
 		"hasCookie": cl.Cookie != "",
 		"accepted":  whoamiErr == nil,

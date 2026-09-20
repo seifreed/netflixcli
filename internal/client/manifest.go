@@ -122,13 +122,3 @@ func parseManifest(bundle string) (*queryManifest, error) {
 	}
 	return m, nil
 }
-
-// Operations lists the GraphQL operations the current build exposes, sorted by
-// name — useful for discovering what the CLI could call.
-func (c *Client) Operations() (map[string]string, error) {
-	m, err := c.manifest()
-	if err != nil {
-		return nil, err
-	}
-	return m.Ops, nil
-}

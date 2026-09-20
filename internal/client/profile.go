@@ -21,8 +21,8 @@ type Profile struct {
 
 // CurrentProfile reports the profile the session is acting as. It comes from
 // the page bootstrap, so it is free once anything else has run.
-func (c *Client) CurrentProfile() (Profile, error) {
-	ctx, err := c.context()
+func (s *Account) CurrentProfile() (Profile, error) {
+	ctx, err := s.client.context()
 	if err != nil {
 		return Profile{}, err
 	}
@@ -35,11 +35,11 @@ func (c *Client) CurrentProfile() (Profile, error) {
 // Profiles lists the account's profiles, marking the one the session is
 // currently acting as. They are read out of the page bootstrap, so this costs
 // one request.
-func (c *Client) Profiles() ([]Profile, error) {
-	if c.Cookie == "" {
+func (s *Account) Profiles() ([]Profile, error) {
+	if s.client.Cookie == "" {
 		return nil, ErrNoSession
 	}
-	html, err := c.GetText(c.BaseURL + "/browse")
+	html, err := s.client.getText(s.client.BaseURL + "/browse")
 	if err != nil {
 		return nil, err
 	}
@@ -87,12 +87,12 @@ func (c apolloCache) profiles() []Profile {
 }
 
 // ResolveProfile finds a profile by guid or by (case-insensitive) name.
-func (c *Client) ResolveProfile(nameOrGUID string) (Profile, error) {
+func (s *Account) ResolveProfile(nameOrGUID string) (Profile, error) {
 	want := strings.TrimSpace(nameOrGUID)
 	if want == "" {
 		return Profile{}, fmt.Errorf("no profile given")
 	}
-	profiles, err := c.Profiles()
+	profiles, err := s.Profiles()
 	if err != nil {
 		return Profile{}, err
 	}
@@ -111,33 +111,33 @@ func (c *Client) ResolveProfile(nameOrGUID string) (Profile, error) {
 // UseProfile re-points the session at another profile the way the web app's
 // profile switcher does, and returns the refreshed Cookie header. A PIN-locked
 // profile cannot be entered this way: Netflix asks for the PIN in the browser.
-func (c *Client) UseProfile(nameOrGUID string) (Profile, string, error) {
-	profile, err := c.ResolveProfile(nameOrGUID)
+func (s *Account) UseProfile(nameOrGUID string) (Profile, string, error) {
+	profile, err := s.ResolveProfile(nameOrGUID)
 	if err != nil {
 		return Profile{}, "", err
 	}
 	if profile.Current {
-		return profile, c.Cookie, nil
+		return profile, s.client.Cookie, nil
 	}
 	if profile.IsPinLocked {
 		return profile, "", fmt.Errorf("profile %q is PIN-locked — unlock it in the browser, then re-import the session", profile.Name)
 	}
-	switchURL := fmt.Sprintf("%s/SwitchProfile?tkn=%s", c.BaseURL, url.QueryEscape(profile.GUID))
-	req, err := c.newReq("GET", switchURL, nil)
+	switchURL := fmt.Sprintf("%s/SwitchProfile?tkn=%s", s.client.BaseURL, url.QueryEscape(profile.GUID))
+	req, err := s.client.newReq("GET", switchURL, nil)
 	if err != nil {
 		return profile, "", err
 	}
-	resp, err := c.noRedirectDo(req)
+	resp, err := s.client.noRedirectDo(req)
 	if err != nil {
 		return profile, "", err
 	}
 	defer resp.Body.Close()
-	updated := cookie.Merge(c.Cookie, resp.Cookies())
-	if updated == c.Cookie {
+	updated := cookie.Merge(s.client.Cookie, resp.Cookies())
+	if updated == s.client.Cookie {
 		return profile, "", fmt.Errorf("netflix did not switch to %q (HTTP %d)", profile.Name, resp.StatusCode)
 	}
-	c.Cookie = updated
-	c.ctx = nil // the bootstrap belongs to the profile that issued it
+	s.client.Cookie = updated
+	s.client.ctx = nil // the bootstrap belongs to the profile that issued it
 	return profile, updated, nil
 }
 

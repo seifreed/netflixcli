@@ -83,7 +83,7 @@ func newClient(c *common) (*client.Client, error) {
 		}
 	}
 	if profile := firstNonEmpty(c.profile, cfg.Defaults.Profile); profile != "" {
-		if _, _, err := cl.UseProfile(profile); err != nil {
+		if _, _, err := cl.Account.UseProfile(profile); err != nil {
 			return nil, err
 		}
 	}

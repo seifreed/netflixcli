@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,8 +29,8 @@ func TestGetTextSendsWebAppHeaders(t *testing.T) {
 		w.Write([]byte("<html></html>"))
 	})
 	c.Lang = "ca-ES"
-	if _, err := c.GetText(srv.URL + "/browse"); err != nil {
-		t.Fatalf("GetText: %v", err)
+	if _, err := c.getText(srv.URL + "/browse"); err != nil {
+		t.Fatalf("getText: %v", err)
 	}
 	if !strings.Contains(got.Get("user-agent"), "Chrome/") {
 		t.Errorf("user-agent = %q, want a Chrome one", got.Get("user-agent"))
@@ -48,8 +49,8 @@ func TestCookieIsWithheldFromForeignHosts(t *testing.T) {
 		w.Write([]byte("<html></html>"))
 	})
 	c.Cookie = "NetflixId=secret"
-	if _, err := c.GetText(srv.URL + "/browse"); err != nil {
-		t.Fatalf("GetText: %v", err)
+	if _, err := c.getText(srv.URL + "/browse"); err != nil {
+		t.Fatalf("getText: %v", err)
 	}
 	if got != "" {
 		t.Fatalf("sent cookie %q to %s, want none", got, srv.URL)
@@ -64,7 +65,7 @@ func TestCookieIsWithheldFromForeignHosts(t *testing.T) {
 
 func TestGetTextRefusesOtherOrigins(t *testing.T) {
 	c, _ := testClient(t, func(http.ResponseWriter, *http.Request) {})
-	if _, err := c.GetText("https://evil.example/browse"); err == nil {
+	if _, err := c.getText("https://evil.example/browse"); err == nil {
 		t.Fatal("want a refusal for a URL outside the configured host")
 	}
 }
@@ -79,9 +80,9 @@ func TestGetTextRetriesThrottling(t *testing.T) {
 		}
 		w.Write([]byte("<html>ok</html>"))
 	})
-	body, err := c.GetText(srv.URL + "/browse")
+	body, err := c.getText(srv.URL + "/browse")
 	if err != nil {
-		t.Fatalf("GetText: %v", err)
+		t.Fatalf("getText: %v", err)
 	}
 	if body != "<html>ok</html>" {
 		t.Errorf("body = %q, want the retried response", body)
@@ -98,7 +99,7 @@ func TestGetTextGivesUpAfterMaxRetries(t *testing.T) {
 		w.Header().Set("Retry-After", "0")
 		w.WriteHeader(http.StatusServiceUnavailable)
 	})
-	if _, err := c.GetText(srv.URL + "/browse"); err == nil {
+	if _, err := c.getText(srv.URL + "/browse"); err == nil {
 		t.Fatal("want an error once the retries run out")
 	}
 	if n := calls.Load(); n != maxRetries+1 {
@@ -106,18 +107,35 @@ func TestGetTextGivesUpAfterMaxRetries(t *testing.T) {
 	}
 }
 
-func TestNeedsLogin(t *testing.T) {
-	for status, want := range map[int]bool{
-		http.StatusUnauthorized: true,
-		http.StatusForbidden:    true,
-		http.StatusNotFound:     false,
-	} {
-		if got := NeedsLogin(&APIError{Status: status}); got != want {
-			t.Errorf("NeedsLogin(%d) = %v, want %v", status, got, want)
+// A refused session is the commonest failure once a cookie ages out. Reporting
+// it as a bare HTTP status leaves the user with nothing to do about it.
+func TestRefusedSessionIsActionable(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		c, srv := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+		})
+		_, err := c.getText(srv.URL + "/browse")
+		if !errors.Is(err, ErrSessionRejected) {
+			t.Errorf("HTTP %d gave %v, want it to wrap ErrSessionRejected", status, err)
+		}
+		if !strings.Contains(err.Error(), "login --from-browser") {
+			t.Errorf("HTTP %d message %q does not say how to fix it", status, err)
 		}
 	}
-	if NeedsLogin(nil) {
-		t.Error("NeedsLogin(nil) must be false")
+}
+
+// Any other failure keeps its status for callers that branch on it.
+func TestOtherStatusesStayAPIErrors(t *testing.T) {
+	c, srv := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	_, err := c.getText(srv.URL + "/browse")
+	status, ok := httpStatus(err)
+	if !ok || status != http.StatusNotFound {
+		t.Errorf("status = %d (ok=%v), want 404 preserved", status, ok)
+	}
+	if errors.Is(err, ErrSessionRejected) {
+		t.Error("a 404 must not be reported as a refused session")
 	}
 }
 

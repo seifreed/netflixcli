@@ -17,7 +17,7 @@ func cmdProfiles(args []string) error {
 	if err != nil {
 		return err
 	}
-	profiles, err := cl.Profiles()
+	profiles, err := cl.Account.Profiles()
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func cmdProfileUse(args []string) error {
 	if err != nil {
 		return err
 	}
-	profile, updated, err := cl.UseProfile(want)
+	profile, updated, err := cl.Account.UseProfile(want)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func cmdHistory(args []string) error {
 	if err != nil {
 		return err
 	}
-	viewings, err := cl.History("")
+	viewings, err := cl.Account.History("")
 	if err != nil {
 		return err
 	}

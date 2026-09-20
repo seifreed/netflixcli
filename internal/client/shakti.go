@@ -80,7 +80,7 @@ func (c *Client) context() (*shaktiContext, error) {
 	if c.Cookie == "" {
 		return nil, ErrNoSession
 	}
-	html, err := c.GetText(c.BaseURL + "/browse")
+	html, err := c.getText(c.BaseURL + "/browse")
 	if err != nil {
 		return nil, err
 	}
@@ -98,8 +98,8 @@ func (c *Client) context() (*shaktiContext, error) {
 }
 
 // Whoami returns the account summary carried by the current session.
-func (c *Client) Whoami() (UserInfo, error) {
-	ctx, err := c.context()
+func (s *Account) Whoami() (UserInfo, error) {
+	ctx, err := s.client.context()
 	if err != nil {
 		return UserInfo{}, err
 	}

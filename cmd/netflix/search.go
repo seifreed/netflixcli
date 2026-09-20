@@ -20,7 +20,7 @@ func cmdSearch(args []string) error {
 	if err != nil {
 		return err
 	}
-	titles, err := cl.Search(query, *limit)
+	titles, err := cl.Catalog.Search(query, *limit)
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func cmdGenres(args []string) error {
 	if err != nil {
 		return err
 	}
-	genres, err := cl.Genres()
+	genres, err := cl.Catalog.Genres()
 	if err != nil {
 		return err
 	}

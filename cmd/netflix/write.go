@@ -10,14 +10,14 @@ import (
 // cmdMyListAdd saves a title to the current profile's My List.
 func cmdMyListAdd(args []string) error {
 	return myListChange(args, "add", func(cl *client.Client, id int) (client.EntityState, error) {
-		return cl.AddToMyList(id)
+		return cl.Library.AddToMyList(id)
 	})
 }
 
 // cmdMyListRemove drops a title from the current profile's My List.
 func cmdMyListRemove(args []string) error {
 	return myListChange(args, "remove", func(cl *client.Client, id int) (client.EntityState, error) {
-		return cl.RemoveFromMyList(id)
+		return cl.Library.RemoveFromMyList(id)
 	})
 }
 
@@ -61,7 +61,7 @@ func cmdRate(args []string) error {
 	if err != nil {
 		return err
 	}
-	state, err := cl.Rate(id, rest[1])
+	state, err := cl.Library.Rate(id, rest[1])
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func cmdContinueRemove(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := cl.RemoveFromContinueWatching(id); err != nil {
+	if err := cl.Library.RemoveFromContinueWatching(id); err != nil {
 		return err
 	}
 	return output(cf, map[string]any{"id": id, "removed": true}, func() {
@@ -99,9 +99,9 @@ func cmdRemind(args []string) error {
 	var change func(*client.Client, int) (client.EntityState, error)
 	switch verb {
 	case "add":
-		change = func(cl *client.Client, id int) (client.EntityState, error) { return cl.AddReminder(id) }
+		change = func(cl *client.Client, id int) (client.EntityState, error) { return cl.Library.AddReminder(id) }
 	case "remove", "rm":
-		change = func(cl *client.Client, id int) (client.EntityState, error) { return cl.RemoveReminder(id) }
+		change = func(cl *client.Client, id int) (client.EntityState, error) { return cl.Library.RemoveReminder(id) }
 	default:
 		return fmt.Errorf("usage: netflix remind add|remove <id|url>")
 	}

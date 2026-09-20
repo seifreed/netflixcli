@@ -49,6 +49,11 @@ type Client struct {
 	// the configured HTTP transport.
 	fetch func(url string) (string, error)
 
+	// What the session can be asked for. See services.go.
+	Catalog *Catalog
+	Library *Library
+	Account *Account
+
 	ctx          *shaktiContext // lazily bootstrapped build id + authURL
 	queries      *queryManifest // lazily resolved persisted GraphQL query ids
 	transportErr error
@@ -56,7 +61,7 @@ type Client struct {
 }
 
 // SetFetcher routes page loads through a caller-provided renderer, such as an
-// already-running Chrome CDP session. URL validation still happens in GetText.
+// already-running Chrome CDP session. URL validation still happens in getText.
 func (c *Client) SetFetcher(fetch func(string) (string, error)) {
 	c.fetch = fetch
 }
@@ -87,6 +92,9 @@ func New() *Client {
 	} else {
 		c.transportErr = err
 	}
+	c.Catalog = &Catalog{c}
+	c.Library = &Library{c}
+	c.Account = &Account{c}
 	return c
 }
 
@@ -110,9 +118,9 @@ func isHTMLBody(body string) bool {
 	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")
 }
 
-// HTTPStatus reports the HTTP status carried by err when it is (or wraps) an
+// httpStatus reports the HTTP status carried by err when it is (or wraps) an
 // *APIError. ok is false for any other error.
-func HTTPStatus(err error) (status int, ok bool) {
+func httpStatus(err error) (status int, ok bool) {
 	var ae *APIError
 	if errors.As(err, &ae) {
 		return ae.Status, true
@@ -120,15 +128,19 @@ func HTTPStatus(err error) (status int, ok bool) {
 	return 0, false
 }
 
-// NeedsLogin reports whether err means the session is missing or expired, which
-// the user fixes by re-importing cookies from the browser.
-func NeedsLogin(err error) bool {
-	status, ok := HTTPStatus(err)
-	return ok && (status == http.StatusUnauthorized || status == http.StatusForbidden)
-}
-
 // ErrNoSession is returned before any request when no cookie is configured.
 var ErrNoSession = errors.New("no Netflix session — run `netflix login --from-browser chrome` first")
+
+// ErrSessionRejected is what a 401 or 403 means in practice: the cookie is no
+// longer good enough for Netflix. Raw statuses tell the user nothing, so every
+// response carrying one is wrapped in this, with the fix in the message.
+var ErrSessionRejected = errors.New("netflix refused the session — re-import it with `netflix login --from-browser chrome`")
+
+// rejectsSession reports whether a status means the session was refused rather
+// than the request being wrong.
+func rejectsSession(status int) bool {
+	return status == http.StatusUnauthorized || status == http.StatusForbidden
+}
 
 func (c *Client) newReq(method, rawURL string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(method, rawURL, body)
@@ -174,7 +186,7 @@ const (
 )
 
 func isRateLimited(err error) bool {
-	status, ok := HTTPStatus(err)
+	status, ok := httpStatus(err)
 	return ok && (status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable)
 }
 
@@ -229,11 +241,15 @@ func (c *Client) do(req *http.Request) ([]byte, error) {
 	defer resp.Body.Close()
 	data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &APIError{
+		apiErr := &APIError{
 			Status:     resp.StatusCode,
 			Body:       string(data),
 			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
 		}
+		if rejectsSession(resp.StatusCode) {
+			return nil, fmt.Errorf("%w (HTTP %d)", ErrSessionRejected, resp.StatusCode)
+		}
+		return nil, apiErr
 	}
 	if readErr != nil {
 		return nil, fmt.Errorf("read response body from %s: %w", req.URL, readErr)
@@ -241,10 +257,10 @@ func (c *Client) do(req *http.Request) ([]byte, error) {
 	return data, nil
 }
 
-// GetText fetches a URL and returns the raw body, retrying transient throttling
+// getText fetches a URL and returns the raw body, retrying transient throttling
 // (429/503). The fetch hook (tests, or a Chrome CDP session) short-circuits the
 // HTTP path.
-func (c *Client) GetText(rawURL string) (string, error) {
+func (c *Client) getText(rawURL string) (string, error) {
 	if !c.sameOrigin(rawURL) {
 		return "", fmt.Errorf("request URL must belong to the configured Netflix host")
 	}
@@ -265,7 +281,7 @@ func (c *Client) GetText(rawURL string) (string, error) {
 			return s, err
 		}
 		wait := retryWait(err, backoff)
-		status, _ := HTTPStatus(err)
+		status, _ := httpStatus(err)
 		c.logf("throttled: HTTP %d on %s — retrying %d/%d in %s", status, rawURL, attempt+1, maxRetries, wait.Round(time.Millisecond))
 		time.Sleep(wait)
 		backoff *= 2

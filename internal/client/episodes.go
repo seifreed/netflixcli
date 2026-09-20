@@ -36,7 +36,7 @@ func (e Episode) Runtime() string {
 }
 
 // Seasons lists a show's seasons, oldest first.
-func (c *Client) Seasons(showID int) ([]Season, error) {
+func (s *Catalog) Seasons(showID int) ([]Season, error) {
 	var resp struct {
 		Videos []struct {
 			TypeName string `json:"__typename"`
@@ -58,7 +58,7 @@ func (c *Client) Seasons(showID int) ([]Season, error) {
 			} `json:"seasons"`
 		} `json:"videos"`
 	}
-	if err := c.GraphQL("PreviewModalEpisodeSelector", map[string]any{
+	if err := s.client.GraphQL("PreviewModalEpisodeSelector", map[string]any{
 		"showId":      showID,
 		"seasonCount": maxSeasonsFetched,
 	}, &resp); err != nil {
@@ -90,7 +90,7 @@ func (c *Client) Seasons(showID int) ([]Season, error) {
 
 // Episodes lists one season's episodes, oldest first. limit bounds how many are
 // requested; 0 asks for a full season.
-func (c *Client) Episodes(seasonID, limit int) ([]Episode, error) {
+func (s *Catalog) Episodes(seasonID, limit int) ([]Episode, error) {
 	if limit <= 0 || limit > DefaultEpisodePageSize {
 		limit = DefaultEpisodePageSize
 	}
@@ -115,7 +115,7 @@ func (c *Client) Episodes(seasonID, limit int) ([]Episode, error) {
 			} `json:"episodes"`
 		} `json:"videos"`
 	}
-	if err := c.GraphQL("PreviewModalEpisodeSelectorSeasonEpisodes", map[string]any{
+	if err := s.client.GraphQL("PreviewModalEpisodeSelectorSeasonEpisodes", map[string]any{
 		"seasonId":          seasonID,
 		"count":             limit,
 		"cursor":            nil,

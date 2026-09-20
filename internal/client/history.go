@@ -17,9 +17,9 @@ type Viewing struct {
 // History returns the profile's viewing activity, newest first. Netflix only
 // exposes this as the CSV its "Download all" button produces, so the CLI parses
 // that. An empty profileGUID means the profile the session is acting as.
-func (c *Client) History(profileGUID string) ([]Viewing, error) {
+func (s *Account) History(profileGUID string) ([]Viewing, error) {
 	if strings.TrimSpace(profileGUID) == "" {
-		profile, err := c.CurrentProfile()
+		profile, err := s.CurrentProfile()
 		if err != nil {
 			return nil, err
 		}
@@ -28,7 +28,7 @@ func (c *Client) History(profileGUID string) ([]Viewing, error) {
 	var resp struct {
 		CSV string `json:"viewingHistoryCSV"`
 	}
-	if err := c.GraphQL("viewingHistoryCSV", map[string]any{
+	if err := s.client.GraphQL("viewingHistoryCSV", map[string]any{
 		"options": map[string]any{"profileGuid": profileGUID},
 	}, &resp); err != nil {
 		return nil, err

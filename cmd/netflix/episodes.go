@@ -18,7 +18,7 @@ func cmdSeasons(args []string) error {
 	if err != nil {
 		return err
 	}
-	seasons, err := cl.Seasons(id)
+	seasons, err := cl.Catalog.Seasons(id)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func cmdEpisodes(args []string) error {
 	if err != nil {
 		return err
 	}
-	seasons, err := cl.Seasons(id)
+	seasons, err := cl.Catalog.Seasons(id)
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func cmdEpisodes(args []string) error {
 	}
 	out := make([]seasonEpisodes, 0, len(wanted))
 	for _, s := range wanted {
-		episodes, err := cl.Episodes(s.ID, *limit)
+		episodes, err := cl.Catalog.Episodes(s.ID, *limit)
 		if err != nil {
 			return err
 		}

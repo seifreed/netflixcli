@@ -44,18 +44,18 @@ func (e entityEnvelope) state() (EntityState, error) {
 }
 
 // AddToMyList saves a title to the current profile's My List.
-func (c *Client) AddToMyList(videoID int) (EntityState, error) {
-	return c.playlistMutation("AddToPlaylist", "addEntityToPlaylist", videoID)
+func (s *Library) AddToMyList(videoID int) (EntityState, error) {
+	return s.playlistMutation("AddToPlaylist", "addEntityToPlaylist", videoID)
 }
 
 // RemoveFromMyList drops a title from the current profile's My List.
-func (c *Client) RemoveFromMyList(videoID int) (EntityState, error) {
-	return c.playlistMutation("RemoveFromPlaylist", "removeEntityFromPlaylist", videoID)
+func (s *Library) RemoveFromMyList(videoID int) (EntityState, error) {
+	return s.playlistMutation("RemoveFromPlaylist", "removeEntityFromPlaylist", videoID)
 }
 
-func (c *Client) playlistMutation(op, field string, videoID int) (EntityState, error) {
+func (s *Library) playlistMutation(op, field string, videoID int) (EntityState, error) {
 	var resp map[string]entityEnvelope
-	if err := c.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
+	if err := s.client.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
 		return EntityState{}, err
 	}
 	result, ok := resp[field]
@@ -85,7 +85,7 @@ func ParseThumbRating(word string) (string, error) {
 }
 
 // Rate sets the current profile's thumb rating for a title.
-func (c *Client) Rate(videoID int, rating string) (EntityState, error) {
+func (s *Library) Rate(videoID int, rating string) (EntityState, error) {
 	enum, err := ParseThumbRating(rating)
 	if err != nil {
 		return EntityState{}, err
@@ -93,7 +93,7 @@ func (c *Client) Rate(videoID int, rating string) (EntityState, error) {
 	var resp struct {
 		SetEntityThumbRating entityEnvelope `json:"setEntityThumbRating"`
 	}
-	if err := c.GraphQL("SetEntityThumbRating", map[string]any{
+	if err := s.client.GraphQL("SetEntityThumbRating", map[string]any{
 		"entityId": entityID(videoID),
 		"rating":   enum,
 	}, &resp); err != nil {
@@ -107,20 +107,20 @@ func (c *Client) Rate(videoID int, rating string) (EntityState, error) {
 // Netflix has no reminder for a title that is already available: asking for one
 // puts the title in My List instead, and says so through the flags it returns.
 // The reminder mutations do not return a title, so EntityState.Title is empty.
-func (c *Client) AddReminder(videoID int) (EntityState, error) {
-	return c.reminderMutation("AddReminder", "addUnifiedEntityToRemindMe", videoID)
+func (s *Library) AddReminder(videoID int) (EntityState, error) {
+	return s.reminderMutation("AddReminder", "addUnifiedEntityToRemindMe", videoID)
 }
 
 // RemoveReminder drops a title's release reminder.
-func (c *Client) RemoveReminder(videoID int) (EntityState, error) {
-	return c.reminderMutation("RemoveReminder", "removeUnifiedEntityFromRemindMe", videoID)
+func (s *Library) RemoveReminder(videoID int) (EntityState, error) {
+	return s.reminderMutation("RemoveReminder", "removeUnifiedEntityFromRemindMe", videoID)
 }
 
 // The reminder mutations answer with the entity itself rather than wrapping it,
 // so the envelope is filled from that.
-func (c *Client) reminderMutation(op, field string, videoID int) (EntityState, error) {
+func (s *Library) reminderMutation(op, field string, videoID int) (EntityState, error) {
 	var resp map[string]json.RawMessage
-	if err := c.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
+	if err := s.client.GraphQL(op, map[string]any{"entityId": entityID(videoID)}, &resp); err != nil {
 		return EntityState{}, err
 	}
 	raw, ok := resp[field]
@@ -139,13 +139,13 @@ func (c *Client) reminderMutation(op, field string, videoID int) (EntityState, e
 
 // RemoveFromContinueWatching drops a title from the profile's Continue Watching
 // row. It does not erase the viewing history entry.
-func (c *Client) RemoveFromContinueWatching(videoID int) error {
+func (s *Library) RemoveFromContinueWatching(videoID int) error {
 	var resp struct {
 		RemoveFromContinueWatching struct {
 			Success bool `json:"success"`
 		} `json:"removeFromContinueWatching"`
 	}
-	if err := c.GraphQL("RemoveFromContinueWatching", map[string]any{
+	if err := s.client.GraphQL("RemoveFromContinueWatching", map[string]any{
 		"unifiedEntityId": entityID(videoID),
 	}, &resp); err != nil {
 		return err

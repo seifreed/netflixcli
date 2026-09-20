@@ -50,15 +50,15 @@ func surfacePath(surface string) (string, error) {
 
 // Browse returns the rows of a browse surface, read from the page Netflix
 // renders for it.
-func (c *Client) Browse(surface string) ([]Row, error) {
+func (s *Library) Browse(surface string) ([]Row, error) {
 	path, err := surfacePath(surface)
 	if err != nil {
 		return nil, err
 	}
-	if c.Cookie == "" {
+	if s.client.Cookie == "" {
 		return nil, ErrNoSession
 	}
-	html, err := c.GetText(c.BaseURL + path)
+	html, err := s.client.getText(s.client.BaseURL + path)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +75,9 @@ func (c *Client) Browse(surface string) ([]Row, error) {
 // Netflix occasionally renders the page without one of these rows, so a miss is
 // retried once before it is reported: a single reload has been enough every
 // time it has been observed.
-func (c *Client) Feed(feed string) (Row, error) {
+func (s *Library) Feed(feed string) (Row, error) {
 	for attempt := 0; attempt < 2; attempt++ {
-		rows, err := c.Browse(SurfaceMyNetflix)
+		rows, err := s.Browse(SurfaceMyNetflix)
 		if err != nil {
 			return Row{}, err
 		}
@@ -86,7 +86,7 @@ func (c *Client) Feed(feed string) (Row, error) {
 				return row, nil
 			}
 		}
-		c.logf("netflix rendered My Netflix without the %q row — reloading", feed)
+		s.client.logf("netflix rendered My Netflix without the %q row — reloading", feed)
 	}
 	return Row{}, fmt.Errorf("netflix did not render a %q row for this profile", feed)
 }

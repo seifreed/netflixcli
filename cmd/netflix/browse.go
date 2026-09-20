@@ -20,7 +20,7 @@ func cmdBrowse(args []string) error {
 	if err != nil {
 		return err
 	}
-	rows, err := cl.Browse(*surface)
+	rows, err := cl.Library.Browse(*surface)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func cmdFeed(feed string) func([]string) error {
 		if err != nil {
 			return err
 		}
-		row, err := cl.Feed(feed)
+		row, err := cl.Library.Feed(feed)
 		if err != nil {
 			return err
 		}
