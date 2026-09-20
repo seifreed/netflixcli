@@ -38,6 +38,16 @@ make build     # ./netflix
 | `netflix continue` | titles this profile is part-way through |
 | `netflix liked` | titles this profile gave a thumbs up |
 
+## Write commands
+
+These change the profile's account state:
+
+| command | what it does |
+| --- | --- |
+| `netflix mylist add <id\|url>` | save a title to My List |
+| `netflix mylist remove <id\|url>` | drop a title from My List |
+| `netflix rate <id\|url> up\|down\|love\|none` | set this profile's thumb rating |
+
 ## Account
 
 | command | what it does |

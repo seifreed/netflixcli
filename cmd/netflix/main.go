@@ -38,7 +38,7 @@ func run(args []string) int {
 	case "browse":
 		err = cmdBrowse(args[1:])
 	case "mylist", "my-list":
-		err = cmdFeed(client.FeedMyList)(args[1:])
+		err = runMyList(args[1:])
 	case "continue", "continue-watching":
 		err = cmdFeed(client.FeedContinueWatching)(args[1:])
 	case "liked":
@@ -47,6 +47,8 @@ func run(args []string) int {
 		err = cmdProfiles(args[1:])
 	case "profile":
 		err = cmdProfile(args[1:])
+	case "rate":
+		err = cmdRate(args[1:])
 	case "history":
 		err = cmdHistory(args[1:])
 	case "title":
@@ -73,6 +75,19 @@ func run(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// runMyList dispatches `mylist` between listing and the two writes.
+func runMyList(args []string) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "add":
+			return cmdMyListAdd(args[1:])
+		case "remove", "rm":
+			return cmdMyListRemove(args[1:])
+		}
+	}
+	return cmdFeed(client.FeedMyList)(args)
 }
 
 func versionString() string {
@@ -105,6 +120,11 @@ READ COMMANDS:
                            (all three take --limit N)
   title <id|url>           full detail for one title (synopsis, cast, genres)
                            --similar   also resolve the similar-title ids
+
+WRITE COMMANDS (they change this profile's account state):
+  mylist add <id|url>      save a title to My List
+  mylist remove <id|url>   drop a title from My List
+  rate <id|url> <rating>   thumb rating: up | down | love | none
 
 ACCOUNT:
   profiles                 list the account's profiles (* marks the active one)
