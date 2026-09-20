@@ -1,132 +1,306 @@
-# netflix-cli
+<p align="center">
+  <img src="https://img.shields.io/badge/netflix--cli-Netflix%20CLI-E50914?style=for-the-badge" alt="netflix-cli">
+</p>
 
-Unofficial, agent-friendly CLI for [netflix.com](https://www.netflix.com), in Go.
+<h1 align="center">netflix-cli</h1>
 
-It talks to the same endpoints the Netflix web app uses — the account state
-embedded in each server-rendered page, and the persisted GraphQL operations the
-browser issues for search, title detail and list management — presenting
-Chrome's TLS fingerprint (uTLS) so the traffic looks like the web app's.
+<p align="center">
+  <strong>Unofficial, agent-friendly command-line client for netflix.com</strong>
+</p>
 
-**The CLI never handles your password.** Sign in to Netflix in your browser as
-usual, then import that session:
+<p align="center">
+  <a href="https://pkg.go.dev/github.com/seifreed/netflixcli"><img src="https://img.shields.io/badge/pkg.go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go Reference"></a>
+  <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/seifreed/netflixcli?style=flat-square&logo=go&logoColor=white" alt="Go Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
+  <a href="https://github.com/seifreed/netflixcli/actions"><img src="https://img.shields.io/github/actions/workflow/status/seifreed/netflixcli/ci.yml?style=flat-square&logo=github&label=CI" alt="CI Status"></a>
+  <a href="https://github.com/seifreed/netflixcli/security/code-scanning"><img src="https://img.shields.io/badge/code%20scanning-SARIF%20enabled-brightgreen?style=flat-square" alt="SARIF"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/seifreed/netflixcli/stargazers"><img src="https://img.shields.io/github/stars/seifreed/netflixcli?style=flat-square" alt="GitHub Stars"></a>
+  <a href="https://github.com/seifreed/netflixcli/issues"><img src="https://img.shields.io/github/issues/seifreed/netflixcli?style=flat-square" alt="GitHub Issues"></a>
+  <a href="https://buymeacoffee.com/seifreed"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
+</p>
+
+---
+
+## Overview
+
+**netflix-cli** searches the Netflix catalogue, reads title detail, and manages
+the signed-in profile's lists from the terminal. It talks to the same endpoints
+the Netflix web app uses and presents Chrome's TLS fingerprint, so the traffic
+looks like the browser's.
+
+**It never handles your password.** Sign in to Netflix in your browser as usual;
+the CLI lifts that session out of the browser's cookie store.
 
 ```sh
 netflix login --from-browser chrome
 netflix whoami
 ```
 
-## Install
+### Key Features
 
-```sh
+| Feature | Description |
+|---------|-------------|
+| **No password, ever** | Imports the session from a browser you already signed in to (Chrome, Firefox, Safari, Edge, Brave) |
+| **Catalogue search** | Pages past the first 48 results, up to whatever Netflix has |
+| **Title detail** | Synopsis, cast, directors, writers, genres, runtime, certification, similar titles |
+| **Seasons and episodes** | Per-season episode lists with synopsis, runtime and your resume point |
+| **Top 10** | Netflix's own ranking for your country — the rows the page does not render |
+| **Personal rows** | My List, Continue Watching, liked titles, reminders |
+| **Writes** | Add to and remove from My List, thumb ratings, reminders, drop from Continue Watching |
+| **Profiles** | List them, act as one for a single command, or switch the stored session |
+| **Viewing history** | Full activity export with dates normalised to ISO 8601 |
+| **Agent-friendly output** | `--json`, `--jsonl` and `--toon`; data on stdout, logs on stderr |
+
+### Supported Outputs
+
+```text
+Structured      JSON, JSONL, TOON (token-oriented, fewer tokens than JSON)
+Human           Aligned tables and title cards
+Exports         Viewing history as CSV
+Agent skill     .claude/skills/netflix-browse for Claude Code
+```
+
+---
+
+## Installation
+
+### From Source (Recommended)
+
+```bash
 go install github.com/seifreed/netflixcli/cmd/netflix@latest
 ```
 
-or from a clone:
+### From a Clone
 
-```sh
-make build     # ./netflix
-make check     # gofmt, vet, tests, build
+```bash
+git clone https://github.com/seifreed/netflixcli.git
+cd netflixcli
+make build          # ./netflix
 ```
 
-## Read commands
+### Verify the Build
 
-| command | what it does |
-| --- | --- |
-| `netflix search <query>` | search the catalogue; `--limit N` pages past the first 48 |
-| `netflix title <id\|url>` | full detail: synopsis, cast, genres, runtime, rating (`--similar`) |
-| `netflix seasons <show-id>` | a show's seasons |
-| `netflix episodes <show-id>` | a season's episodes (`--season N`, `--all`, `--limit N`) |
-| `netflix open <id\|url>` | open the title page, or the player with `--watch` |
+```bash
+make check          # gofmt, vet, tests, build
+make gate           # the full quality and security gates
+```
+
+---
+
+## Quick Start
+
+```bash
+# Import the session from a browser you are signed in to
+netflix login --from-browser chrome
+
+# Who is this?
+netflix whoami
+
+# What is most watched in this country right now?
+netflix top
+
+# Is it on Netflix?
+netflix search "breaking bad" --limit 5
+
+# Tell me about it
+netflix title 70143836
+```
+
+---
+
+## Usage
+
+### Read Commands
+
+| Command | Description |
+|---------|-------------|
+| `netflix search <query>` | Search the catalogue. `--limit N` pages past the first 48 |
 | `netflix top` | Netflix's top 10 series and films in this country |
-| `netflix genres [filter]` | genres this region offers, with the ids `browse` takes |
-| `netflix browse [surface]` | rows of a browse page: `home`, `my-netflix` or a genre id (`--all` for every row) |
-| `netflix mylist` | titles saved in this profile's My List |
-| `netflix continue` | titles this profile is part-way through |
-| `netflix liked` | titles this profile gave a thumbs up |
-| `netflix reminders` | titles this profile is waiting for |
+| `netflix title <id\|url>` | Full detail. `--similar` resolves the related ids |
+| `netflix seasons <show-id>` | A show's seasons |
+| `netflix episodes <show-id>` | Episodes. `--season N`, `--all`, `--limit N` |
+| `netflix genres [filter]` | Genres this region offers, with the ids `browse` takes |
+| `netflix browse [surface]` | Rows of a browse page: `home`, `my-netflix` or a genre id. `--all` fetches every row |
+| `netflix mylist` | Titles saved in this profile's My List |
+| `netflix continue` | Titles this profile is part-way through |
+| `netflix liked` | Titles this profile gave a thumbs up |
+| `netflix reminders` | Titles this profile is waiting for |
+| `netflix open <id>` | Open in the system browser. `--watch` goes straight to the player |
 
-## Write commands
+### Write Commands
 
-These change the profile's account state:
+These change the profile's account state.
 
-| command | what it does |
-| --- | --- |
-| `netflix mylist add <id\|url>` | save a title to My List |
-| `netflix mylist remove <id\|url>` | drop a title from My List |
-| `netflix rate <id\|url> up\|down\|love\|none` | set this profile's thumb rating |
-| `netflix continue remove <id\|url>` | drop a title from Continue Watching (not undoable from the CLI) |
-| `netflix remind add\|remove <id\|url>` | release reminder for a title that is not out yet |
+| Command | Description |
+|---------|-------------|
+| `netflix mylist add <id>` | Save a title to My List |
+| `netflix mylist remove <id>` | Drop a title from My List |
+| `netflix rate <id> <rating>` | Thumb rating: `up`, `down`, `love` or `none` |
+| `netflix continue remove <id>` | Drop a title from Continue Watching (not undoable) |
+| `netflix remind add\|remove <id>` | Release reminder for a title that is not out yet |
 
-## Account
+### Account and Session
 
-| command | what it does |
-| --- | --- |
-| `netflix profiles` | list the account's profiles (`*` marks the active one) |
-| `netflix profile use <name\|guid>` | re-point the stored session at another profile |
-| `netflix history` | this profile's viewing activity, newest first (`--limit N`, `--csv`) |
+| Command | Description |
+|---------|-------------|
+| `netflix profiles` | List the account's profiles; `*` marks the active one |
+| `netflix profile use <name>` | Re-point the stored session at another profile |
+| `netflix history` | Viewing activity, newest first. `--limit N`, `--csv` |
+| `netflix login --from-browser b` | Lift cookies from a browser's store |
+| `netflix import-har --file f` | Import a DevTools HAR ("Save all as HAR with sensitive data") |
+| `netflix set-cookie '<cookie>'` | Seed a raw Cookie header. `--stdin` keeps it out of shell history |
+| `netflix whoami` | Show the account and the profile the session acts as |
 
-`--profile <name>` works on **every** command: it acts as that profile for that
-one invocation, leaving the stored session where it was. `profile use` is what
-changes it for good.
+### Common Flags
 
-## Session
+| Option | Description |
+|--------|-------------|
+| `--json` | Emit raw JSON (data → stdout, logs → stderr) |
+| `--jsonl` | One JSON object per line |
+| `--toon` | [TOON](https://github.com/toon-format/toon-go) — same fields as JSON, far fewer tokens |
+| `--profile <name\|guid>` | Act as another profile for this one invocation |
+| `--lang es-ES` | UI language for titles and labels |
+| `--browser` | Fetch through an already-running Chrome via CDP |
 
-| command | what it does |
-| --- | --- |
-| `netflix login --from-browser chrome` | lift cookies from a browser's store (chrome, chromium, firefox, safari, edge, brave) |
-| `netflix import-har --file netflix.har` | import a DevTools HAR ("Save all as HAR with sensitive data") |
-| `netflix set-cookie '<cookie header>'` | seed a raw Cookie header (`--stdin` supported) |
-| `netflix whoami` | show the account the session belongs to |
+Flags may appear anywhere after the command.
 
-The session is cached in `~/.netflix/session.json` (mode 0600).
+---
+
+## How It Talks to Netflix
+
+Two paths, each the cheapest one for the job:
+
+**Browse surfaces** come out of the page itself. Netflix server-renders every
+row it shows as an Apollo cache embedded in the HTML, so one page fetch yields
+My List, Continue Watching and the editorial rows. Row titles are localised, so
+the CLI matches the personal rows on the feed id Netflix encodes in each row's
+page actions, not on their names.
+
+**Search, title detail, episodes and every write** go to the GraphQL gateway as
+*persisted* operations — an id, not a query document. Those ids change with
+every Netflix build, so the CLI scrapes them out of the client bundle once per
+build and caches the map in `~/.netflix/queries.json`. The first command after a
+Netflix deploy downloads that bundle; every later one is a single request.
+
+---
+
+## Quality and Security Gates
+
+Both gates are pinned to exact tool versions, so a gate means the same thing on
+every machine and in CI.
+
+### Quality Gate — `make quality`
+
+| Check | Tool | What it catches |
+|-------|------|-----------------|
+| Formatting | `gofmt` | Unformatted source |
+| Correctness | `go vet` | Suspicious constructs the compiler allows |
+| Lint | `golangci-lint` | staticcheck, revive, gocritic, errcheck, ineffassign, unused, gosec, govet |
+| Dependency drift | `go mod tidy -diff` | `go.mod`/`go.sum` that are not what `tidy` would write |
+| Concurrency | `go test -race` | Data races |
+| Coverage floor | `coverage-gate.sh` | Total coverage below the floor (a ratchet, never lowered) |
+
+### Security Gate — `make security`
+
+| Check | Tool | What it catches |
+|-------|------|-----------------|
+| Reachable vulnerabilities | `govulncheck` | CVEs on code paths the binary actually reaches |
+| Dependency vulnerabilities | `osv-scanner` | CVEs anywhere in the dependency graph, reachable or not |
+| Secret scanning | `gitleaks` | A session cookie or token committed to history |
+| Supply chain | `go mod verify` | Module checksums that disagree with `go.sum` |
+
+`make gate` runs both plus the build — the same thing CI runs. CI also uploads
+the static-analysis findings as SARIF 2.1.0 to GitHub Code Scanning.
+
+---
+
+## Agent Use
+
+The repository ships a [Claude Code](https://claude.com/claude-code) skill at
+`.claude/skills/netflix-browse`. It teaches an agent which command answers which
+question, to chain by title id rather than by localised name, what each command
+costs in requests, which commands write to the account, and what the CLI cannot
+do — so it neither guesses nor invents.
+
+Pair it with `--toon` to keep the token cost of results down.
+
+---
+
+## Configuration
+
 `~/.netflix/config.toml` holds defaults:
 
 ```toml
 [defaults]
-profile = "…"      # profile guid used by default
+profile = "…"      # profile guid or name used by default
 lang = "es-ES"
 ```
 
-## How it talks to Netflix
+| Path | Contents |
+|------|----------|
+| `~/.netflix/session.json` | Cached Cookie header, mode 0600. Never print it |
+| `~/.netflix/queries.json` | Persisted GraphQL query ids for the current build; safe to delete |
+| `~/.netflix/config.toml` | Defaults above, plus an optional `[auth] cookie` |
 
-Two paths, each the cheapest one for the job:
+| Variable | Purpose |
+|----------|---------|
+| `NETFLIX_CONFIG_DIR` | Override `~/.netflix` |
+| `NETFLIX_BASE_URL` | Override the page host (debugging proxy, mock) |
+| `NETFLIX_GRAPHQL_URL` | Override the GraphQL gateway (debugging proxy, mock) |
+| `NETFLIX_CHROME_CDP_URL` | DevTools endpoint of an already-running Chrome, for `--browser` |
 
-**Browse surfaces** (home, My Netflix, a genre) come out of the page itself.
-Netflix ships every row it renders as an Apollo cache embedded in the HTML, so
-one page fetch yields My List, Continue Watching and the editorial rows without
-replaying the page-assembler query. Row titles are localised, so the CLI matches
-the personal rows on the feed id Netflix encodes in each row's page actions, not
-on their names.
+---
 
-**Search and title detail** are not in the page, so they go to the GraphQL
-gateway the web app uses. It sends *persisted* operations — an id, not a query
-document — and those ids change with every Netflix build. The CLI therefore
-scrapes the id map out of the Akira client bundle once per build and caches it
-in `~/.netflix/queries.json`: the first command after a Netflix deploy downloads
-that bundle, every later one is a single request.
+## Requirements
 
-## Output for agents
+- Go 1.26.6+ (see [go.mod](go.mod))
+- A browser you are signed in to Netflix with, for the initial session import
 
-Every command takes `--json`, `--jsonl` or `--toon`
-([TOON](https://github.com/toon-format/toon-go) is a token-oriented format that
-costs fewer tokens than JSON). Data goes to stdout, diagnostics to stderr, so
-piping is always safe.
+---
 
-## Environment
+## Contributing
 
-| variable | purpose |
-| --- | --- |
-| `NETFLIX_CONFIG_DIR` | override `~/.netflix` |
-| `NETFLIX_BASE_URL` | override the page host (debugging proxy, mock) |
-| `NETFLIX_GRAPHQL_URL` | override the GraphQL gateway (debugging proxy, mock) |
-| `NETFLIX_CHROME_CDP_URL` | existing Chrome DevTools endpoint for `--browser` |
+Contributions are welcome.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Run `make gate` and make sure it is green
+5. Open a Pull Request
+
+---
 
 ## Legal
 
 Not affiliated with, endorsed by, or sponsored by Netflix. It automates a
-browser session you already own, for your own account. Respect Netflix's Terms
-of Use.
+browser session you already own, for your own account, and reads only what that
+account can already see. Respect Netflix's Terms of Use.
+
+---
+
+## Support the Project
+
+If this project is useful in your workflows, you can support development:
+
+<a href="https://buymeacoffee.com/seifreed" target="_blank">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+</a>
+
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+This project is licensed under the MIT license. See [LICENSE](LICENSE).
+
+**Attribution**
+- Author: **Marc Rivero López** | [@seifreed](https://github.com/seifreed)
+- Repository: [github.com/seifreed/netflixcli](https://github.com/seifreed/netflixcli)
+
+---
+
+<p align="center">
+  <sub>Built for terminal-first and agent-driven Netflix workflows</sub>
+</p>
