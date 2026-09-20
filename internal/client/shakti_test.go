@@ -46,3 +46,42 @@ func TestAcceptLanguage(t *testing.T) {
 		}
 	}
 }
+
+// Every member page carries the bootstrap, so a surface load can supply it and
+// save the extra /browse fetch. A page that carries only part of it must not be
+// cached, or a later Profiles() would find nothing to list.
+func TestAdoptContextRefusesAnIncompletePage(t *testing.T) {
+	for name, html := range map[string]string{
+		"no bootstrap at all": "<html><body>nothing</body></html>",
+		"no client bundle":    bootstrapPage + pageWithProfiles,
+		"no profiles":         bootstrapPage,
+	} {
+		c := New()
+		c.adoptContext(html)
+		if c.ctx != nil {
+			t.Errorf("%s: adopted a bootstrap with profiles=%d bundle=%q",
+				name, len(c.ctx.Profiles), c.ctx.BundleURL)
+		}
+	}
+}
+
+// A page carrying all of it is adopted, and context() then costs nothing.
+func TestAdoptContextTakesACompletePage(t *testing.T) {
+	html := bootstrapPage +
+		`<script src="https://assets.nflxext.com/web/ffe/wp/ui/akira/akiraClient.0123456789abcdef.js"></script>` +
+		pageWithProfiles
+	c := New()
+	c.adoptContext(html)
+	if c.ctx == nil {
+		t.Fatal("a complete page was not adopted")
+	}
+	if len(c.ctx.Profiles) != 3 || c.ctx.BuildID != "v1a09dd61" {
+		t.Errorf("adopted %d profiles for build %q", len(c.ctx.Profiles), c.ctx.BuildID)
+	}
+	// Adopting again must not replace a bootstrap already in hand.
+	before := c.ctx
+	c.adoptContext("<html></html>")
+	if c.ctx != before {
+		t.Error("a later page replaced the bootstrap already held")
+	}
+}

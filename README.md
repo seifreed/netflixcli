@@ -124,7 +124,7 @@ netflix title 70143836
 | `netflix episodes <show-id>` | Episodes. `--season N`, `--all`, `--limit N` |
 | `netflix genres [filter]` | Genres this region offers, with the ids `browse` takes |
 | `netflix browse [surface]` | Rows of a browse page: `home`, `my-netflix` or a genre id. `--all` fetches every row |
-| `netflix mylist` | Titles saved in this profile's My List |
+| `netflix mylist` | Every title saved in this profile's My List (`--limit N` for a sample) |
 | `netflix continue` | Titles this profile is part-way through |
 | `netflix liked` | Titles this profile gave a thumbs up |
 | `netflix reminders` | Titles this profile is waiting for |

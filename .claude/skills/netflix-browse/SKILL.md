@@ -22,6 +22,8 @@ profile's lists.
   ends up in shell history — `set-cookie --stdin` exists for that.
 - The catalogue is regional and personalised. Results describe *this* account, not Netflix at large;
   say so when it matters.
+- `mylist`, `continue`, `liked` and `reminders` return the **whole** list, not the handful the
+  browse page renders. Use `--limit N` when a sample is enough.
 - `mylist add`, `mylist remove`, `rate`, `remind` and `continue remove` change the user's account.
   Run them only when the user asked for that change. Everything else is read-only.
 - `continue remove` cannot be undone from the CLI — confirm before running it.
@@ -77,12 +79,18 @@ Worth knowing before chaining several:
 
 | Command | Requests |
 |---|---|
-| `browse`, `mylist`, `continue`, `liked`, `reminders` | 1 (one page fetch; ~13 titles per row) |
+| `browse`, `whoami` | 1 (one page fetch) |
+| `mylist`, `continue`, `liked`, `reminders` | 2, or 3 for a list of more than 100 |
+| `title`, `seasons`, `genres`, `history`, `search --limit ≤48`, the writes | 2 |
+| `search` | +1 per 48 titles past the first |
+| `episodes` | 3, +1 per 50 episodes past the first |
 | `top`, `browse --all` | ~4 (the rows past the eighth are paged in) |
-| `search --limit N` | 1 per 48 titles |
-| `title`, `seasons`, `genres`, the writes | 1 |
-| `episodes` | 2 (seasons, then the episodes) |
+| `open` | 0 — it only hands a URL to the browser |
 | anything with `--profile` | +2 |
+
+These are measured, not estimated. A feed asks once, learns how long the list
+is, and asks again only when the list is longer than the first ask — so
+`mylist --limit 5` costs 2 while the whole 352-title list costs 3.
 
 The first command after a Netflix deploy also downloads the client bundle
 (~15 MB) to refresh the query map. That is expected, not a hang.

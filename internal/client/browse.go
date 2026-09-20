@@ -73,6 +73,7 @@ func (s *Library) surfaceCache(surface string) (apolloCache, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.client.adoptContext(html)
 	return parseApolloCache(html)
 }
 

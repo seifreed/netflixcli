@@ -72,6 +72,22 @@ func parseReactContext(html string) (*shaktiContext, error) {
 	}, nil
 }
 
+// contextFrom reads the bootstrap out of a member page: the build and who is
+// signed in from the script, and the profiles from the cache the same page
+// carries, so who the session acts as and what else it could act as cost no
+// extra request.
+func contextFrom(html string) (*shaktiContext, error) {
+	ctx, err := parseReactContext(html)
+	if err != nil {
+		return nil, err
+	}
+	if cache, cacheErr := parseApolloCache(html); cacheErr == nil {
+		ctx.Profile = cache.currentProfile()
+		ctx.Profiles = cache.profiles()
+	}
+	return ctx, nil
+}
+
 // context bootstraps the page state once per process — the build, the client
 // bundle and who is signed in — by loading a member page with the cookie.
 func (c *Client) context() (*shaktiContext, error) {
@@ -85,18 +101,29 @@ func (c *Client) context() (*shaktiContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, err := parseReactContext(html)
+	ctx, err := contextFrom(html)
 	if err != nil {
 		return nil, err
 	}
-	// The same page carries the profile cache, so who the session acts as and
-	// what else it could act as both cost no extra request.
-	if cache, cacheErr := parseApolloCache(html); cacheErr == nil {
-		ctx.Profile = cache.currentProfile()
-		ctx.Profiles = cache.profiles()
-	}
 	c.ctx = ctx
 	return ctx, nil
+}
+
+// adoptContext takes the bootstrap out of a member page that was fetched for
+// another reason. Every member page carries one, so a surface load followed by
+// a gateway call used to fetch two pages where one would do.
+//
+// A page whose bootstrap is incomplete is ignored rather than cached: context()
+// will fetch /browse, which always carries the whole of it.
+func (c *Client) adoptContext(html string) {
+	if c.ctx != nil {
+		return
+	}
+	ctx, err := contextFrom(html)
+	if err != nil || ctx.BundleURL == "" || len(ctx.Profiles) == 0 {
+		return
+	}
+	c.ctx = ctx
 }
 
 // Whoami returns the account summary carried by the current session.

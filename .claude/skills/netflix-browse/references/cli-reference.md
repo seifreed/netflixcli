@@ -29,11 +29,11 @@ already the right one.
 | `netflix episodes SHOW-ID\|URL [--season N] [--all] [--limit N]` | Episodes with number, title, synopsis, runtime, and a resume marker where the profile left off. Defaults to the first season. |
 | `netflix top [--limit N]` | Netflix's top 10 series and films for this country, numbered. They are not in the page — the command pages through the rows to reach them, so it costs about four requests. |
 | `netflix genres [FILTER]` | The genres this region offers with the ids `browse` takes. Netflix never shows these ids in the UI, so this is the only way to find one. |
-| `netflix browse [SURFACE] [--limit N]` | Rows of a browse page. Surfaces: `home` (default), `my-netflix`, or a genre id such as `8711`. `--limit` caps titles per row. `--all` fetches every row (about 47 on the home page) instead of the eight the page renders, at roughly four requests. A personal row that exists but is empty is reported as empty, not omitted. |
-| `netflix mylist [--limit N]` | Titles in this profile's My List. |
-| `netflix continue [--limit N]` | Titles this profile is part-way through. |
-| `netflix liked [--limit N]` | Titles this profile gave a thumbs up. |
-| `netflix reminders [--limit N]` | Titles this profile is waiting for. |
+| `netflix browse [SURFACE] [--limit N]` | Rows of a browse page. Surfaces: `home` (default), `my-netflix`, or a genre id such as `8711`. `--limit` caps titles per row. `--all` fetches every row (about 47 on the home page) instead of the eight the page renders, at roughly four requests. Its rows carry the same `feed` markers and keep empty personal rows, so it is a superset of the default. A personal row that exists but is empty is reported as empty, not omitted. |
+| `netflix mylist [--limit N]` | Every title in this profile's My List — the whole list, which can be hundreds. `--limit N` for a sample. |
+| `netflix continue [--limit N]` | Every title this profile is part-way through. |
+| `netflix liked [--limit N]` | Every title this profile gave a thumbs up. |
+| `netflix reminders [--limit N]` | Every title this profile is waiting for. |
 | `netflix history [--limit N] [--csv]` | Viewing activity, newest first, dates as `YYYY-MM-DD`. |
 | `netflix open ID\|URL [--watch]` | Open the title page, or the player with `--watch`, in the system browser. |
 
