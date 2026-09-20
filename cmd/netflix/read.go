@@ -205,3 +205,31 @@ func cmdFeed(feed string) func([]string) error {
 		return nil
 	}
 }
+
+// cmdGenres lists the genres this region offers, optionally filtered. The ids
+// are what `browse` needs and Netflix never shows them in the UI.
+func cmdGenres(args []string) error {
+	fs, cf := newCommonFlags("genres")
+	parseFlags(fs, args)
+	cl, err := newClient(cf)
+	if err != nil {
+		return err
+	}
+	genres, err := cl.Genres()
+	if err != nil {
+		return err
+	}
+	query := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	genres = client.MatchGenres(genres, query)
+	if done, err := emitStructured(cf, genres); done {
+		return err
+	}
+	if len(genres) == 0 {
+		fmt.Printf("(no genre matches %q)\n", query)
+		return nil
+	}
+	for _, g := range genres {
+		fmt.Printf("%-40s %d\n", g.Title, g.Number)
+	}
+	return nil
+}

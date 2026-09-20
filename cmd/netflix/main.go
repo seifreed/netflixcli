@@ -35,6 +35,8 @@ func run(args []string) int {
 	switch args[0] {
 	case "search":
 		err = cmdSearch(args[1:])
+	case "genres":
+		err = cmdGenres(args[1:])
 	case "browse":
 		err = cmdBrowse(args[1:])
 	case "mylist", "my-list":
@@ -117,6 +119,7 @@ USAGE:
 READ COMMANDS:
   search <query>           search the catalogue
                            --limit N   how many titles (pages past the first 48)
+  genres [filter]          genres this region offers, with the ids browse takes
   browse [surface]         rows of a browse page (home by default)
                            surface: home | my-netflix | latest | games | <genre-id>
                            --limit N   cap titles per row
