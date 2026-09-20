@@ -59,6 +59,28 @@ where the user is signed in — never to ask for credentials.
 
 Ids come from `search`; every command that takes an id also takes a `netflix.com/title/<id>` URL.
 
+## What this CLI cannot do
+
+Do not try, and say so plainly if asked: **play or download video** (Netflix
+streams are DRM-protected — `open --watch` hands the title to the browser, which
+is the answer), fetch **subtitles**, change the **plan or payment**, create or
+delete **profiles**, or see anything outside **this account's region**.
+
+## What each command costs
+
+Worth knowing before chaining several:
+
+| Command | Requests |
+|---|---|
+| `browse`, `mylist`, `continue`, `liked`, `reminders` | 1 (one page fetch; ~13 titles per row) |
+| `search --limit N` | 1 per 48 titles |
+| `title`, `seasons`, `genres`, the writes | 1 |
+| `episodes` | 2 (seasons, then the episodes) |
+| anything with `--profile` | +2 |
+
+The first command after a Netflix deploy also downloads the client bundle
+(~15 MB) to refresh the query map. That is expected, not a hang.
+
 ## Working with the output
 
 Add `--toon` when feeding results back into your own reasoning: it carries the same fields as
@@ -67,6 +89,10 @@ rows into other tools. Data goes to stdout and diagnostics to stderr, so pipes s
 
 Chain by id, not by name: `search` → take the `id` → `title <id>` for detail, or `mylist add <id>`.
 Titles are localised and ambiguous; ids are not.
+
+When describing a title to the user, quote `rating` (`12+`, `16+`) — it is the
+local certification. `maturityLevel` is Netflix's internal numeric scale and
+means nothing to a reader.
 
 ## Profiles
 
@@ -87,5 +113,8 @@ browser.
 | session "is not signed in" | the cookie expired — re-run `login --from-browser`. |
 | `does not expose the GraphQL operation` | Netflix shipped a new build; the query map refreshes itself on the next run. |
 | a title is missing | it is not in this region's catalogue — that is an answer, not an error. |
+| a personal row reports "is empty" | it really is empty for this profile; it is not a failure. |
+| `unknown browse surface` | run `netflix genres` for a usable id. |
+| the first call is slow | Netflix deployed; the query map is being rebuilt from the client bundle. |
 
 See `references/cli-reference.md` for the full flag list.
