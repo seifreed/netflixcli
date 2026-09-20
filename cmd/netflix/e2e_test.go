@@ -184,3 +184,128 @@ func TestUnknownCommandIsAUsageError(t *testing.T) {
 		t.Errorf("exit code = %d, want %d", code, exitUsage)
 	}
 }
+
+// The rest of the commands go to the GraphQL gateway. Pointing NETFLIX_GRAPHQL_URL
+// at a stub and seeding the query map — which is what a real run caches after
+// its first call — lets those run end to end too.
+func stubGateway(t *testing.T, responses map[string]string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		op := r.Header.Get("x-netflix.context.operation-name")
+		body, ok := responses[op]
+		if !ok {
+			t.Errorf("stub gateway got an unexpected operation %q", op)
+			http.Error(w, "unexpected operation", http.StatusNotImplemented)
+			return
+		}
+		w.Header().Set("content-type", "application/json")
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Errorf("stub gateway write: %v", err)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("NETFLIX_GRAPHQL_URL", srv.URL)
+
+	manifest := `{"build":"v1a09dd61","version":102,"ops":{` +
+		`"SearchPageQueryResults":"11111111-1111-1111-1111-111111111111",` +
+		`"GetGenreSubgenres":"22222222-2222-2222-2222-222222222222",` +
+		`"DetailModal":"33333333-3333-3333-3333-333333333333"}}`
+	path := filepath.Join(os.Getenv("NETFLIX_CONFIG_DIR"), "queries.json")
+	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("seed query manifest: %v", err)
+	}
+}
+
+func TestSearchRendersResults(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"SearchPageQueryResults": `{"data":{"page":{"sections":{"edges":[
+			{"node":{"__typename":"PinotGallerySection","_id":"g1","entities":{
+				"pageInfo":{"hasNextPage":false},
+				"edges":[{"node":{"displayString":"Dark","unifiedEntity":{"__typename":"Show","videoId":80100172}}}]}}}]}}}}`,
+	})
+	code, out := runCommand(t, "search", "dark")
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d", code, exitOK)
+	}
+	if !strings.Contains(out, "Dark") || !strings.Contains(out, "80100172") {
+		t.Errorf("output %q does not carry the result", out)
+	}
+}
+
+func TestSearchWithoutResultsSaysSo(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"SearchPageQueryResults": `{"data":{"page":{"sections":{"edges":[]}}}}`,
+	})
+	code, out := runCommand(t, "search", "nothingmatchesthis")
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d", code, exitOK)
+	}
+	if !strings.Contains(out, "no results") {
+		t.Errorf("output %q does not report an empty search", out)
+	}
+}
+
+// A GraphQL error arrives inside a 200; it must still fail the command.
+func TestGraphQLErrorFailsTheCommand(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"SearchPageQueryResults": `{"errors":[{"message":"nope"}],"data":null}`,
+	})
+	code, _ := runCommand(t, "search", "dark")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d", code, exitError)
+	}
+}
+
+func TestGenresListsTheRegionMenu(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"GetGenreSubgenres": `{"data":{"navigationMenuCategories":[
+			{"id":"genre-8711","title":"Películas de terror"},
+			{"id":"genre-6548","title":"Comedias"}]}}`,
+	})
+	code, out := runCommand(t, "genres", "terror")
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d", code, exitOK)
+	}
+	if !strings.Contains(out, "8711") {
+		t.Errorf("output %q does not carry the matching genre id", out)
+	}
+	if strings.Contains(out, "Comedias") {
+		t.Errorf("output %q was not filtered", out)
+	}
+}
+
+func TestTitleRendersTheCertificationNotTheMaturityNumber(t *testing.T) {
+	stubNetflix(t)
+	stubGateway(t, map[string]string{
+		"DetailModal": `{"data":{"unifiedEntities":[{"__typename":"Show","videoId":80100172,
+			"title":"Dark","latestYear":2020,"runtimeSec":3060,
+			"contentAdvisory":{"certificationValue":"16+","maturityLevel":90},
+			"contextualSynopsis":{"text":"Un pueblo alemán."},
+			"genreTags":{"edges":[{"node":{"name":"Series de misterio"}}]},
+			"cast":{"edges":[{"node":{"name":"Louis Hofmann"}}]}}]}}`,
+	})
+	code, out := runCommand(t, "title", "80100172")
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d", code, exitOK)
+	}
+	for _, want := range []string{"Dark", "2020", "51m", "16+", "Un pueblo alemán.", "Louis Hofmann"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output %q is missing %q", out, want)
+		}
+	}
+	if strings.Contains(out, "90") {
+		t.Errorf("output %q leaks Netflix's internal maturity number", out)
+	}
+}
+
+func TestTitleRejectsAnOperandThatIsNotAnID(t *testing.T) {
+	stubNetflix(t)
+	code, _ := runCommand(t, "title", "not-an-id")
+	if code != exitError {
+		t.Errorf("exit code = %d, want %d", code, exitError)
+	}
+}

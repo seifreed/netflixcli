@@ -275,7 +275,8 @@ COMMON FLAGS (may go anywhere after the command):
   --browser-endpoint URL   local CDP endpoint (default: 127.0.0.1:9222)
 
 ENV:
-  NETFLIX_BASE_URL         override the host (debugging proxy, mock)
+  NETFLIX_BASE_URL         override the page host (debugging proxy, mock)
+  NETFLIX_GRAPHQL_URL      override the GraphQL gateway (debugging proxy, mock)
   NETFLIX_CONFIG_DIR       override ~/.netflix
   NETFLIX_CHROME_CDP_URL   existing Chrome DevTools endpoint
 

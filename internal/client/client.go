@@ -48,7 +48,7 @@ type Client struct {
 	Cookie string
 
 	// GraphQLURL is the gateway persisted operations are sent to. It defaults to
-	// GraphQLEndpoint; tests point it at a stub.
+	// GraphQLEndpoint; a proxy or a stub is pointed at through it.
 	GraphQLURL string
 
 	// Logf, when set, receives human-readable diagnostics on stderr (nil disables).

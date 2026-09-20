@@ -60,7 +60,8 @@ These change account state. Run them only on an explicit request.
 | Variable | Purpose |
 |---|---|
 | `NETFLIX_CONFIG_DIR` | Override `~/.netflix` (session cache, query map, config.toml). |
-| `NETFLIX_BASE_URL` | Override the host — for a debugging proxy or a mock. |
+| `NETFLIX_BASE_URL` | Override the page host — for a debugging proxy or a mock. |
+| `NETFLIX_GRAPHQL_URL` | Override the GraphQL gateway — same purpose. |
 | `NETFLIX_CHROME_CDP_URL` | DevTools endpoint of an already-running Chrome, for `--browser`. |
 
 ## Files

@@ -116,7 +116,8 @@ piping is always safe.
 | variable | purpose |
 | --- | --- |
 | `NETFLIX_CONFIG_DIR` | override `~/.netflix` |
-| `NETFLIX_BASE_URL` | override the host (debugging proxy, mock) |
+| `NETFLIX_BASE_URL` | override the page host (debugging proxy, mock) |
+| `NETFLIX_GRAPHQL_URL` | override the GraphQL gateway (debugging proxy, mock) |
 | `NETFLIX_CHROME_CDP_URL` | existing Chrome DevTools endpoint for `--browser` |
 
 ## Legal

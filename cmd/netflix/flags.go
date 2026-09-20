@@ -55,6 +55,9 @@ func newClient(c *common) (*client.Client, error) {
 	if u := os.Getenv("NETFLIX_BASE_URL"); u != "" {
 		cl.BaseURL = u
 	}
+	if u := os.Getenv("NETFLIX_GRAPHQL_URL"); u != "" {
+		cl.GraphQLURL = u
+	}
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		stderrLogf("config.toml could not be read (%v) — using defaults", err)
