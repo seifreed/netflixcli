@@ -9,17 +9,22 @@ import (
 	"github.com/browserutils/kooky"
 )
 
-// stubBrowser stands in for a browser in kooky's cookie store. All four methods
-// are here because kooky.BrowserInfo requires them; only Browser() is read.
-type stubBrowser struct{ name string }
+// stubBrowser stands in for one browser profile in kooky's cookie store. All
+// four methods are here because kooky.BrowserInfo requires them; Browser() and
+// Profile() are the ones cookie selection reads.
+type stubBrowser struct{ name, profile string }
 
 func (b stubBrowser) Browser() string        { return b.name }
-func (b stubBrowser) Profile() string        { return "Default" }
-func (b stubBrowser) IsDefaultProfile() bool { return true }
+func (b stubBrowser) Profile() string        { return b.profile }
+func (b stubBrowser) IsDefaultProfile() bool { return b.profile == "Default" }
 func (b stubBrowser) FilePath() string       { return "" }
 
 func storeCookie(browser, domain, name, value string) *kooky.Cookie {
-	c := &kooky.Cookie{Browser: stubBrowser{browser}}
+	return profileCookie(browser, "Default", domain, name, value)
+}
+
+func profileCookie(browser, profile, domain, name, value string) *kooky.Cookie {
+	c := &kooky.Cookie{Browser: stubBrowser{browser, profile}}
 	c.Domain = domain
 	c.Name = name
 	c.Value = value
@@ -132,5 +137,46 @@ func TestCookiesFromBrowserReportsAnEmptyStore(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "sign in") {
 		t.Errorf("error %q does not say what to do about it", err)
+	}
+}
+
+// Two profiles of the same browser are two accounts. Merging their cookies
+// splices one account's NetflixId onto the other's supporting cookies, which is
+// a session belonging to nobody.
+func TestCookiesFromBrowserKeepsProfilesApart(t *testing.T) {
+	// The profiles hold different cookies, which is what makes a merge visible:
+	// one signed in, one only ever browsed logged out.
+	withCookieStore(t,
+		profileCookie("chrome", "Profile 1", ".netflix.com", "NetflixId", "account-one"),
+		profileCookie("chrome", "Profile 1", ".netflix.com", "SecureNetflixId", "secure-one"),
+		profileCookie("chrome", "Profile 2", ".netflix.com", "nfvdid", "anonymous"),
+	)
+	s, err := CookiesFromBrowser("chrome")
+	if err != nil {
+		t.Fatalf("CookiesFromBrowser: %v", err)
+	}
+	if strings.Contains(s.Cookie, "anonymous") {
+		t.Errorf("cookie = %q splices the other profile's cookie onto this session", s.Cookie)
+	}
+	for _, want := range []string{"NetflixId=account-one", "SecureNetflixId=secure-one"} {
+		if !strings.Contains(s.Cookie, want) {
+			t.Errorf("cookie = %q is missing %q from the signed-in profile", s.Cookie, want)
+		}
+	}
+}
+
+// A profile that is not signed in must not shadow one that is.
+func TestCookiesFromBrowserPrefersTheSignedInProfile(t *testing.T) {
+	withCookieStore(t,
+		profileCookie("chrome", "Profile 1", ".netflix.com", "flwssn", "anonymous"),
+		profileCookie("chrome", "Profile 2", ".netflix.com", "nfvdid", "member"),
+		profileCookie("chrome", "Profile 2", ".netflix.com", "NetflixId", "signed-in"),
+	)
+	s, err := CookiesFromBrowser("chrome")
+	if err != nil {
+		t.Fatalf("CookiesFromBrowser: %v", err)
+	}
+	if !strings.Contains(s.Cookie, "NetflixId=signed-in") || strings.Contains(s.Cookie, "anonymous") {
+		t.Errorf("cookie = %q, want the signed-in profile alone", s.Cookie)
 	}
 }

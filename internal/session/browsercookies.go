@@ -16,9 +16,16 @@ import (
 const cookieDomain = "netflix.com"
 
 type browserCookie struct {
+	store storeKey
+	name  string
+	value string
+}
+
+// storeKey identifies one cookie store. A browser name alone is not one: Chrome
+// with a personal and a work profile has two, and they are two accounts.
+type storeKey struct {
 	browser string
-	name    string
-	value   string
+	profile string
 }
 
 // traverseCookies is indirected so cookie selection can be tested without
@@ -47,14 +54,14 @@ func CookiesFromBrowser(browser string) (Session, error) {
 		if !cookie.IsNetflixHost(strings.TrimPrefix(strings.TrimSpace(c.Domain), ".")) || !cookie.ValidPair(c.Name, c.Value) {
 			continue
 		}
-		bname := ""
+		var store storeKey
 		if c.Browser != nil {
-			bname = strings.ToLower(c.Browser.Browser())
+			store = storeKey{strings.ToLower(c.Browser.Browser()), c.Browser.Profile()}
 		}
-		if browser != "" && bname != browser {
+		if browser != "" && store.browser != browser {
 			continue
 		}
-		cookies = append(cookies, browserCookie{browser: bname, name: c.Name, value: c.Value})
+		cookies = append(cookies, browserCookie{store: store, name: c.Name, value: c.Value})
 	}
 
 	if cookie, ok := pickSessionCookie(cookies, browser); ok {
@@ -79,24 +86,28 @@ func supportedBrowser(browser string) bool {
 	}
 }
 
-// pickSessionCookie keeps cookies from separate browser profiles isolated and
-// prefers the first profile carrying a signed-in NetflixId.
+// pickSessionCookie keeps each cookie store whole and prefers the first one
+// carrying a signed-in NetflixId.
+//
+// A store is one profile of one browser. Keying it by browser alone merged
+// Chrome's profiles into a single header, splicing one account's NetflixId onto
+// another's supporting cookies — a session belonging to neither.
 func pickSessionCookie(cookies []browserCookie, want string) (string, bool) {
-	stores := map[string]map[string]string{}
-	var storeOrder []string
+	stores := map[storeKey]map[string]string{}
+	var storeOrder []storeKey
 	for _, c := range cookies {
-		if want != "" && c.browser != want {
+		if want != "" && c.store.browser != want {
 			continue
 		}
-		if stores[c.browser] == nil {
-			stores[c.browser] = map[string]string{}
-			storeOrder = append(storeOrder, c.browser)
+		if stores[c.store] == nil {
+			stores[c.store] = map[string]string{}
+			storeOrder = append(storeOrder, c.store)
 		}
-		stores[c.browser][c.name] = c.value
+		stores[c.store][c.name] = c.value
 	}
 	var fallback string
-	for _, bname := range storeOrder {
-		header := cookie.Header(stores[bname])
+	for _, key := range storeOrder {
+		header := cookie.Header(stores[key])
 		if cookie.LooksAuthenticated(header) {
 			return header, true
 		}

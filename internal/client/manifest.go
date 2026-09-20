@@ -99,9 +99,15 @@ func (c *Client) scrapeManifest(bundleURL string) (*queryManifest, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &APIError{Status: resp.StatusCode, Body: "client bundle download failed"}
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBundleBytes))
+	// Read one byte past the cap so a bundle that outgrew it is reported rather
+	// than scraped half-read: the query ids past the cut would simply be absent
+	// from the manifest, and the manifest is then cached.
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBundleBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read netflix client bundle: %w", err)
+	}
+	if len(data) > maxBundleBytes {
+		return nil, fmt.Errorf("netflix client bundle is larger than %d MiB — raise maxBundleBytes", maxBundleBytes>>20)
 	}
 	return parseManifest(string(data))
 }

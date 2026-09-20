@@ -75,8 +75,9 @@ func Load(name string, v any) error {
 }
 
 // Save writes v as pretty JSON to name in the config dir, 0600 (secrets). The
-// write is atomic — temp file then os.Rename — so a crash mid-write cannot
-// corrupt the session store.
+// write is atomic — temp file, flushed, then os.Rename — so a crash mid-write
+// cannot corrupt the session store. Without the flush the rename is still
+// atomic for the name, but the file it names can survive a crash empty.
 func Save(name string, v any) error {
 	path, err := statePath(name)
 	if err != nil {
@@ -97,6 +98,10 @@ func Save(name string, v any) error {
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
 	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
 	}
