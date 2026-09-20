@@ -3,6 +3,7 @@ package cookie
 
 import (
 	"net/http"
+	"sort"
 	"strings"
 )
 
@@ -48,4 +49,37 @@ func Value(raw, want string) string {
 		}
 	}
 	return ""
+}
+
+// Merge applies Set-Cookie updates to a Cookie header, returning the new header
+// with pairs sorted by name so the result is stable. A cookie the server
+// expires (MaxAge < 0) is dropped.
+func Merge(header string, updates []*http.Cookie) string {
+	jar := map[string]string{}
+	for _, part := range strings.Split(header, ";") {
+		name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if ok && name != "" {
+			jar[name] = value
+		}
+	}
+	for _, c := range updates {
+		if c == nil || c.Name == "" {
+			continue
+		}
+		if c.MaxAge < 0 || !ValidPair(c.Name, c.Value) {
+			delete(jar, c.Name)
+			continue
+		}
+		jar[c.Name] = c.Value
+	}
+	names := make([]string, 0, len(jar))
+	for name := range jar {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		parts = append(parts, name+"="+jar[name])
+	}
+	return strings.Join(parts, "; ")
 }

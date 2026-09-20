@@ -145,30 +145,3 @@ func (c *Client) PathEvaluator(paths ...any) (json.RawMessage, error) {
 	}
 	return json.RawMessage(data), nil
 }
-
-// GetJSON fetches a Shakti REST endpoint (viewingactivity, billingActivity, …)
-// relative to /api/shakti/<build>/, decoding the response into v.
-func (c *Client) GetJSON(path string, query url.Values, v any) error {
-	ctx, err := c.context()
-	if err != nil {
-		return err
-	}
-	endpoint := fmt.Sprintf("%s/api/shakti/%s/%s", c.BaseURL, url.PathEscape(ctx.BuildID), strings.TrimPrefix(path, "/"))
-	if len(query) > 0 {
-		endpoint += "?" + query.Encode()
-	}
-	req, err := c.newReq("GET", endpoint, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("accept", "application/json, text/javascript, */*")
-	req.Header.Set("x-requested-with", "XMLHttpRequest")
-	data, err := c.do(req)
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(data, v); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
-	}
-	return nil
-}

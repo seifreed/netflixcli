@@ -1,0 +1,136 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/seifreed/netflixcli/internal/client"
+	"github.com/seifreed/netflixcli/internal/session"
+)
+
+// cmdProfiles lists the account's profiles and marks the active one.
+func cmdProfiles(args []string) error {
+	fs, cf := newCommonFlags("profiles")
+	parseFlags(fs, args)
+	cl := newClient(cf)
+	profiles, err := cl.Profiles()
+	if err != nil {
+		return err
+	}
+	if done, err := emitStructured(cf, profiles); done {
+		return err
+	}
+	for _, p := range profiles {
+		marker := " "
+		if p.Current {
+			marker = "*"
+		}
+		tags := []string{}
+		if p.IsKids {
+			tags = append(tags, "kids")
+		}
+		if p.IsPinLocked {
+			tags = append(tags, "pin-locked")
+		}
+		line := fmt.Sprintf("%s %-20s %s", marker, p.Name, p.GUID)
+		if len(tags) > 0 {
+			line += "  (" + strings.Join(tags, ", ") + ")"
+		}
+		fmt.Println(line)
+	}
+	return nil
+}
+
+// cmdProfileUse re-points the stored session at another profile, the way the
+// web app's profile switcher does.
+func cmdProfileUse(args []string) error {
+	fs, cf := newCommonFlags("profile use")
+	parseFlags(fs, args)
+	want := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	if want == "" {
+		return fmt.Errorf("usage: netflix profile use <name|guid>")
+	}
+	cl := newClient(cf)
+	profile, updated, err := cl.UseProfile(want)
+	if err != nil {
+		return err
+	}
+	if err := session.SaveSession(session.Session{Cookie: updated}); err != nil {
+		return err
+	}
+	if done, err := emitStructured(cf, profile); done {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "session now acts as %q\n", profile.Name)
+	return nil
+}
+
+// cmdProfile dispatches the profile subcommands.
+func cmdProfile(args []string) error {
+	if len(args) > 0 && args[0] == "use" {
+		return cmdProfileUse(args[1:])
+	}
+	if len(args) > 0 && args[0] == "list" {
+		return cmdProfiles(args[1:])
+	}
+	return cmdProfiles(args)
+}
+
+// cmdHistory prints the profile's viewing activity.
+func cmdHistory(args []string) error {
+	fs, cf := newCommonFlags("history")
+	limit := fs.Int("limit", 0, "max entries to return (0 = all)")
+	asCSV := fs.Bool("csv", false, "emit CSV instead of a table")
+	parseFlags(fs, args)
+	cl := newClient(cf)
+	guid := ""
+	if cf.profile != "" {
+		profile, err := cl.ResolveProfile(cf.profile)
+		if err != nil {
+			return err
+		}
+		guid = profile.GUID
+	}
+	viewings, err := cl.History(guid)
+	if err != nil {
+		return err
+	}
+	if *limit > 0 && len(viewings) > *limit {
+		viewings = viewings[:*limit]
+	}
+	if *asCSV {
+		return emitViewingsCSV(viewings)
+	}
+	if done, err := emitStructured(cf, viewings); done {
+		return err
+	}
+	if len(viewings) == 0 {
+		fmt.Println("(no viewing activity for this profile)")
+		return nil
+	}
+	for _, v := range viewings {
+		fmt.Printf("%s  %s\n", v.Date, v.Title)
+	}
+	return nil
+}
+
+func emitViewingsCSV(viewings []client.Viewing) error {
+	if _, err := fmt.Fprintln(os.Stdout, "date,title"); err != nil {
+		return err
+	}
+	for _, v := range viewings {
+		if _, err := fmt.Fprintf(os.Stdout, "%s,%s\n", v.Date, csvField(v.Title)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// csvField quotes a field that would otherwise break the row.
+func csvField(s string) string {
+	if !strings.ContainsAny(s, `,"`+"\n") {
+		return s
+	}
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+}

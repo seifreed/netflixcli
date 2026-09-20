@@ -43,6 +43,12 @@ func run(args []string) int {
 		err = cmdFeed(client.FeedContinueWatching)(args[1:])
 	case "liked":
 		err = cmdFeed(client.FeedLiked)(args[1:])
+	case "profiles":
+		err = cmdProfiles(args[1:])
+	case "profile":
+		err = cmdProfile(args[1:])
+	case "history":
+		err = cmdHistory(args[1:])
 	case "title":
 		err = cmdTitle(args[1:])
 	case "login":
@@ -99,6 +105,13 @@ READ COMMANDS:
                            (all three take --limit N)
   title <id|url>           full detail for one title (synopsis, cast, genres)
                            --similar   also resolve the similar-title ids
+
+ACCOUNT:
+  profiles                 list the account's profiles (* marks the active one)
+  profile use <name|guid>  re-point the stored session at another profile
+  history                  this profile's viewing activity, newest first
+                           --limit N   cap entries
+                           --csv       emit CSV instead of a table
 
 SESSION (bring the session from a browser you are already signed in to):
   login --from-browser b   lift cookies from a browser's store — easiest

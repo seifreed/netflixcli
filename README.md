@@ -38,6 +38,17 @@ make build     # ./netflix
 | `netflix continue` | titles this profile is part-way through |
 | `netflix liked` | titles this profile gave a thumbs up |
 
+## Account
+
+| command | what it does |
+| --- | --- |
+| `netflix profiles` | list the account's profiles (`*` marks the active one) |
+| `netflix profile use <name\|guid>` | re-point the stored session at another profile |
+| `netflix history` | this profile's viewing activity, newest first (`--limit N`, `--csv`) |
+
+`history` accepts `--profile <name>` to read another profile's activity without
+switching to it.
+
 ## Session
 
 | command | what it does |
