@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"fmt"
 	"github.com/seifreed/netflixcli/internal/client"
 )
 
@@ -64,22 +65,51 @@ func TestEmitJSONLSplitsArrays(t *testing.T) {
 	}
 }
 
+// captureStdout runs fn with os.Stdout replaced by a pipe and returns what it
+// wrote.
+//
+// The pipe is drained by a goroutine *while* fn runs. Reading only afterwards
+// deadlocks as soon as fn writes more than the pipe's buffer, since nothing is
+// emptying it — which is what happened on Windows, whose buffer is smaller than
+// the 64 KiB that hid this on Linux and macOS: one test printing 150 titles as
+// JSON hung until the suite timed out.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("pipe: %v", err)
 	}
+	captured := make(chan string, 1)
+	go func() {
+		var buf bytes.Buffer
+		if _, err := io.Copy(&buf, r); err != nil {
+			t.Errorf("read captured stdout: %v", err)
+		}
+		captured <- buf.String()
+	}()
+
 	stdout := os.Stdout
 	os.Stdout = w
-	defer func() { os.Stdout = stdout }()
 	fn()
-	w.Close()
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
-		t.Fatalf("read captured stdout: %v", err)
+	os.Stdout = stdout
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe: %v", err)
 	}
-	return buf.String()
+	return <-captured
+}
+
+// A command's output is not bounded by a pipe's buffer. This writes well past
+// any of them; before the reader ran concurrently it deadlocked instead.
+func TestCaptureStdoutHandlesMoreThanAPipeBuffer(t *testing.T) {
+	const lines = 20000
+	out := captureStdout(t, func() {
+		for i := 0; i < lines; i++ {
+			fmt.Println("a line of output that is long enough to matter, number", i)
+		}
+	})
+	if got := strings.Count(out, "\n"); got != lines {
+		t.Errorf("captured %d lines of %d", got, lines)
+	}
 }
 
 // A command that found nothing must answer with an empty list, not null: a
