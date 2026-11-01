@@ -7,7 +7,7 @@ require (
 	github.com/browserutils/kooky v0.2.10
 	github.com/chromedp/chromedp v0.16.0
 	github.com/refraction-networking/utls v1.8.2
-	github.com/toon-format/toon-go v0.0.0-20251202084852-7ca0e27c4e8c
+	github.com/toon-format/toon-go v1.0.1
 )
 
 require (
